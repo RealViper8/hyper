@@ -12,7 +12,7 @@ This is the main source code repository for **Hyper**. It currently contains the
 
 **Hyper** is a compiled programming language built for **Python familiarity**, **native performance**, and **AI-scale workloads**. Its syntax is deliberately close to Python so teams can reuse existing habits, scripts, and ecosystems inside the Hyper environment with minimal friction.
 
-Hyper is designed to deliver **C- and C++-class memory control** and **hardware-aware execution** (CPU and GPU) so numerically heavy programs can run **orders of magnitude faster** than typical CPython — often tens to hundreds of times faster on hot paths once compiled.
+Hyper is designed to deliver **C and C++ class memory control** and **hardware-aware execution** (CPU and GPU) so numerically heavy programs can run **orders of magnitude faster** than typical CPython — often tens to hundreds of times faster on hot paths once compiled.
 
 The language targets the bottlenecks of **neural network training** and **large-scale data processing**: long-running compute kernels, tight memory use, and parallel work across cores and accelerators.
 
@@ -27,7 +27,7 @@ Architecture draws from **Rust-style safety** (memory safety as a first-class go
 
 ## Building from source
 
-Hyper **v0.1.0** is the first public release. Clone, build, and run the toolchain from source — see [Building from source](doc/building.md).
+Clone, build, and run the toolchain from source — see [Building from source](doc/building.md).
 
 ## Contributing
 
