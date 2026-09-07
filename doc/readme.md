@@ -28,10 +28,11 @@ doc/
 │
 ├── overview/                 Project goals and release criteria
 ├── toolchain/                run vs compile today
+├── langref/                  Written language reference (mirrors examples/)
 ├── compiler/                 Compile pipeline, support matrix, gaps
 ├── standard-library/         open, with, json, mmap
 ├── errors/                   Error kinds (prose reference)
-└── examples/                 Syntax samples (.hyp only — not book chapters)
+└── examples/                 Syntax samples (.hyp only — runnable counterparts)
 ```
 
 Browse chapters from the sidebar ([`SUMMARY.md`](SUMMARY.md)) or use the map below.
@@ -47,6 +48,7 @@ Browse chapters from the sidebar ([`SUMMARY.md`](SUMMARY.md)) or use the map bel
 | **Why Hyper** | [overview/why-hyper.md](overview/why-hyper.md) | Official vision: Python compat, speed, AI, safety |
 | **First release** | [overview/first-release-scope.md](overview/first-release-scope.md) | v0.1 readiness checklist |
 | **Dual backend** | [toolchain/dual-backend.md](toolchain/dual-backend.md) | When to use `run` vs `compile`; long-term direction |
+| **Language reference** | [langref/README.md](langref/README.md) | Written reference for every language topic (mirrors `examples/`) |
 | **Compiler overview** | [compiler/overview.md](compiler/overview.md) | AST → IR → Cranelift pipeline; flags |
 | **Supported features** | [compiler/supported-features.md](compiler/supported-features.md) | Constructs lowered by `hyper compile` today |
 | **Known limitations** | [compiler/known-limitations.md](compiler/known-limitations.md) | Unimplemented or partial compile paths |
@@ -59,7 +61,7 @@ Browse chapters from the sidebar ([`SUMMARY.md`](SUMMARY.md)) or use the map bel
 
 ## Code samples (`doc/examples/`)
 
-These directories contain **executable examples**, not markdown chapters. They are intentionally omitted from the mdBook sidebar; open them in the repository or your editor.
+These directories contain **executable examples**, not markdown chapters. Each topic has a matching written page under [`langref/`](langref/README.md). Open `.hyp` files to run; open langref to read the rules.
 
 | Topic | Path | Contents |
 |:------|:-----|:---------|
