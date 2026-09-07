@@ -190,6 +190,19 @@ jobs:
           test "$jit_code" -eq 70
           "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/dz_run.txt" "$HYPER_TMP/dz_jit.txt"
 
+      - name: Literal division by zero (compile-time)
+        run: |
+          set +e
+          cargo run --quiet -- typecheck ci/literal_divzero.hyp > "$HYPER_TMP/ldz.txt" 2>&1
+          tc_code=$?
+          cargo run --quiet -- compile ci/literal_divzero.hyp > "$HYPER_TMP/ldz_c.txt" 2>&1
+          c_code=$?
+          set -e
+          test "$tc_code" -eq 65
+          test "$c_code" -eq 65
+          grep -q "division by zero" "$HYPER_TMP/ldz.txt"
+          grep -q "division by zero" "$HYPER_TMP/ldz_c.txt"
+
       - name: Run and compile output parity
         run: |
           cargo run --quiet -- run ci/smoke.hyp > "$HYPER_TMP/out_run.txt"
