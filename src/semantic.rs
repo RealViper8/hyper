@@ -520,6 +520,14 @@ impl TypeChecker {
                 let lt = self.check_expr(left);
                 let rt = self.check_expr(right);
                 let (lt, rt) = Self::harmonize_int_binary(left, right, lt, rt);
+                if matches!(op, BinOp::Div | BinOp::FloorDiv | BinOp::Rem)
+                    && Self::is_zero_literal(right)
+                {
+                    self.error(format!(
+                        "Type error: division by zero in '{}'.",
+                        op
+                    ));
+                }
                 self.check_binary(op, &lt, &rt)
             }
             Expr::Assign { name, value } => {
@@ -584,12 +592,16 @@ impl TypeChecker {
                 HyperType::Any
             }
             Expr::Call { callee, args } => self.check_call(callee, args),
-            Expr::CallMethod { object, args, .. } => {
-                let _ = self.check_expr(object);
+            Expr::CallMethod {
+                object,
+                method,
+                args,
+            } => {
+                let ot = self.check_expr(object);
                 for a in args {
                     let _ = self.check_expr(a);
                 }
-                HyperType::Any
+                self.check_method_on_type(&ot, method, args.len())
             }
             Expr::List(items) => {
                 let mut elem = HyperType::Any;
@@ -634,9 +646,22 @@ impl TypeChecker {
                 index,
                 value,
             } => {
-                let _ = self.check_expr(object);
+                let ot = self.check_expr(object);
                 let _ = self.check_expr(index);
-                self.check_expr(value)
+                let vt = self.check_expr(value);
+                match ot {
+                    HyperType::List(_)
+                    | HyperType::Array(_)
+                    | HyperType::Dict
+                    | HyperType::Any => {}
+                    other => {
+                        self.error(format!(
+                            "Type error: cannot index-assign value of type {:?}.",
+                            other
+                        ));
+                    }
+                }
+                vt
             }
             Expr::FString { parts, .. } => {
                 for part in parts {
@@ -680,6 +705,335 @@ impl TypeChecker {
                 }
             }
         }
+    }
+
+    fn is_zero_literal(expr: &Expr) -> bool {
+        match expr {
+            Expr::Literal(Literal::Number(n)) => {
+                let t = n.trim();
+                t == "0"
+                    || t == "0.0"
+                    || t == "0.00"
+                    || t == "0e0"
+                    || t == "0E0"
+                    || t.parse::<f64>().ok() == Some(0.0)
+            }
+            Expr::Group(inner) => Self::is_zero_literal(inner),
+            Expr::Unary {
+                op: UnaryOp::Neg,
+                right,
+            } => Self::is_zero_literal(right),
+            _ => false,
+        }
+    }
+
+    fn is_lengthable(ty: &HyperType) -> bool {
+        matches!(
+            ty,
+            HyperType::List(_)
+                | HyperType::Array(_)
+                | HyperType::Dict
+                | HyperType::String
+                | HyperType::Any
+        )
+    }
+
+    fn check_method_on_type(
+        &mut self,
+        receiver: &HyperType,
+        method: &str,
+        argc: usize,
+    ) -> HyperType {
+        let string_methods: &[&str] = &[
+            "len",
+            "upper",
+            "lower",
+            "capitalize",
+            "title",
+            "swapcase",
+            "strip",
+            "lstrip",
+            "rstrip",
+            "startswith",
+            "endswith",
+            "split",
+            "rsplit",
+            "replace",
+            "join",
+            "find",
+            "rfind",
+            "index",
+            "rindex",
+            "count",
+            "isdigit",
+            "isalpha",
+            "isalnum",
+            "isspace",
+            "islower",
+            "isupper",
+            "istitle",
+            "isascii",
+            "center",
+            "ljust",
+            "rjust",
+            "zfill",
+            "removeprefix",
+            "removesuffix",
+            "partition",
+            "rpartition",
+        ];
+        match receiver {
+            HyperType::Any
+                | HyperType::Struct(_)
+                | HyperType::File
+                | HyperType::Mmap
+                | HyperType::None
+                | HyperType::Trait(_) => HyperType::Any,
+            HyperType::String => {
+                if !string_methods.contains(&method) {
+                    self.error(format!(
+                        "Type error: string has no method '{}'.",
+                        method
+                    ));
+                } else if method == "len" && argc != 0 {
+                    self.error(format!(
+                        "Type error: '{method}' expects 0 argument(s) but got {argc}."
+                    ));
+                }
+                match method {
+                    "len" | "find" | "rfind" | "index" | "rindex" | "count" => HyperType::I64,
+                    "startswith" | "endswith" | "isdigit" | "isalpha" | "isalnum" | "isspace"
+                    | "islower" | "isupper" | "istitle" | "isascii" => HyperType::Bool,
+                    "split" | "rsplit" | "partition" | "rpartition" => {
+                        HyperType::List(Box::new(HyperType::String))
+                    }
+                    _ => HyperType::String,
+                }
+            }
+            HyperType::List(_) | HyperType::Array(_) => match method {
+                "len" => {
+                    if argc != 0 {
+                        self.error(format!(
+                            "Type error: 'len' expects 0 argument(s) but got {argc}."
+                        ));
+                    }
+                    HyperType::I64
+                }
+                "append" => {
+                    if argc != 1 {
+                        self.error(format!(
+                            "Type error: 'append' expects 1 argument(s) but got {argc}."
+                        ));
+                    }
+                    HyperType::None
+                }
+                other => {
+                    self.error(format!(
+                        "Type error: list has no method '{}'.",
+                        other
+                    ));
+                    HyperType::Any
+                }
+            },
+            HyperType::Dict => match method {
+                "len" => {
+                    if argc != 0 {
+                        self.error(format!(
+                            "Type error: 'len' expects 0 argument(s) but got {argc}."
+                        ));
+                    }
+                    HyperType::I64
+                }
+                "keys" => {
+                    if argc != 0 {
+                        self.error(format!(
+                            "Type error: 'keys' expects 0 argument(s) but got {argc}."
+                        ));
+                    }
+                    HyperType::List(Box::new(HyperType::String))
+                }
+                other => {
+                    self.error(format!(
+                        "Type error: dict has no method '{}'.",
+                        other
+                    ));
+                    HyperType::Any
+                }
+            },
+            other => {
+                self.error(format!(
+                    "Type error: type {:?} has no method '{}'.",
+                    other, method
+                ));
+                HyperType::Any
+            }
+        }
+    }
+
+    fn check_builtin_call(
+        &mut self,
+        name: &str,
+        args: &[CallArg],
+        arg_tys: &[HyperType],
+    ) -> Option<HyperType> {
+        let n = arg_tys.len();
+        let expect_exact = |this: &mut Self, want: usize| {
+            if n != want {
+                this.error(format!(
+                    "Type error: {name} expects {want} argument(s) but got {n}."
+                ));
+            }
+        };
+        let ret = match name {
+            "print" => return None, // varargs; already soft
+            "clock" => {
+                expect_exact(self, 0);
+                HyperType::F64
+            }
+            "input" => {
+                if n > 1 {
+                    self.error(format!(
+                        "Type error: input expects 0 or 1 argument(s) but got {n}."
+                    ));
+                }
+                HyperType::String
+            }
+            "open" => {
+                if n == 0 || n > 2 {
+                    self.error(format!(
+                        "Type error: open expects 1 or 2 argument(s) but got {n}."
+                    ));
+                }
+                HyperType::File
+            }
+            "len" => {
+                expect_exact(self, 1);
+                if n == 1 && !Self::is_lengthable(&arg_tys[0]) {
+                    self.error(format!(
+                        "Type error: len() argument must be a list, array, dict, or string, got {:?}.",
+                        arg_tys[0]
+                    ));
+                }
+                HyperType::I64
+            }
+            "abs" | "chr" | "ord" | "bin" | "hex" | "oct" | "int" | "float" | "str" | "bool"
+            | "all" | "any" | "sorted" | "reversed" | "enumerate" | "sum" | "repr" => {
+                if name == "enumerate" {
+                    if n == 0 || n > 2 {
+                        self.error(format!(
+                            "Type error: enumerate expects 1 or 2 argument(s) but got {n}."
+                        ));
+                    }
+                } else {
+                    expect_exact(self, 1);
+                }
+                if name == "abs" && n == 1 && !Self::is_numeric(&arg_tys[0]) && !matches!(arg_tys[0], HyperType::Any) {
+                    self.error(format!(
+                        "Type error: abs() expects a number, got {:?}.",
+                        arg_tys[0]
+                    ));
+                }
+                if (name == "all" || name == "any" || name == "sum" || name == "sorted" || name == "reversed")
+                    && n == 1
+                    && !matches!(
+                        arg_tys[0],
+                        HyperType::List(_) | HyperType::Array(_) | HyperType::Any
+                    )
+                {
+                    self.error(format!(
+                        "Type error: {name}() expects a list, got {:?}.",
+                        arg_tys[0]
+                    ));
+                }
+                match name {
+                    "chr" | "bin" | "hex" | "oct" | "str" | "repr" => HyperType::String,
+                    "ord" | "int" => HyperType::I64,
+                    "float" => HyperType::F64,
+                    "bool" | "all" | "any" => HyperType::Bool,
+                    "sorted" | "reversed" | "enumerate" => {
+                        HyperType::List(Box::new(HyperType::Any))
+                    }
+                    _ => HyperType::Any,
+                }
+            }
+            "pow" | "divmod" => {
+                expect_exact(self, 2);
+                if n == 2 {
+                    for (i, t) in arg_tys.iter().enumerate() {
+                        if !Self::is_numeric(t) && !matches!(t, HyperType::Any) {
+                            self.error(format!(
+                                "Type error: {name}() argument {} must be numeric, got {:?}.",
+                                i + 1,
+                                t
+                            ));
+                        }
+                    }
+                    if name == "divmod" {
+                        let e = match &args[1] {
+                            CallArg::Positional(e) | CallArg::Named { value: e, .. } => e,
+                        };
+                        if Self::is_zero_literal(e) {
+                            self.error(
+                                "Type error: divmod() division by zero.".to_string(),
+                            );
+                        }
+                    }
+                }
+                if name == "divmod" {
+                    HyperType::List(Box::new(HyperType::Any))
+                } else {
+                    HyperType::Any
+                }
+            }
+            "round" => {
+                if n == 0 || n > 2 {
+                    self.error(format!(
+                        "Type error: round expects 1 or 2 argument(s) but got {n}."
+                    ));
+                }
+                HyperType::Any
+            }
+            "min" | "max" => {
+                if n == 0 {
+                    self.error(format!(
+                        "Type error: {name} expects at least 1 argument."
+                    ));
+                }
+                HyperType::Any
+            }
+            "list" => {
+                if n > 1 {
+                    self.error(format!(
+                        "Type error: list expects 0 or 1 argument(s) but got {n}."
+                    ));
+                }
+                HyperType::List(Box::new(HyperType::Any))
+            }
+            "range" => {
+                if n == 0 || n > 3 {
+                    self.error(format!(
+                        "Type error: range expects 1 to 3 argument(s) but got {n}."
+                    ));
+                }
+                if n == 3 {
+                    let e = match &args[2] {
+                        CallArg::Positional(e) | CallArg::Named { value: e, .. } => e,
+                    };
+                    if Self::is_zero_literal(e) {
+                        self.error(
+                            "Type error: range() step must not be zero.".to_string(),
+                        );
+                    }
+                }
+                HyperType::List(Box::new(HyperType::I64))
+            }
+            "zip" => {
+                // zip packs args into a list at runtime; 0 args yields empty list.
+                HyperType::List(Box::new(HyperType::Any))
+            }
+            _ => return None,
+        };
+        Some(ret)
     }
 
     fn check_binary(&mut self, op: &BinOp, left: &HyperType, right: &HyperType) -> HyperType {
@@ -755,6 +1109,13 @@ impl TypeChecker {
             }
         }
 
+        // Named builtins: arity / operand checks before generic Function rules.
+        if let Expr::Variable { name, .. } = callee {
+            if let Some(ret) = self.check_builtin_call(name, args, &arg_tys) {
+                return ret;
+            }
+        }
+
         // Struct construction: Call on struct name.
         if let HyperType::Struct(ref name) = callee_ty {
             let _ = name;
@@ -788,8 +1149,11 @@ impl TypeChecker {
                 ret.as_ref().clone()
             }
             HyperType::Any => HyperType::Any,
-            _ => {
-                // Soft: allow calling unknowns (e.g. before full inference).
+            other => {
+                self.error(format!(
+                    "Type error: value of type {:?} is not callable.",
+                    other
+                ));
                 HyperType::Any
             }
         }
@@ -1290,6 +1654,68 @@ mod tests {
         let errors = check("continue\n").expect_err("a top-level continue should fail");
         assert!(
             errors.iter().any(|e| e.contains("continue outside loop")),
+            "unexpected errors: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn literal_division_by_zero_is_rejected_at_typecheck() {
+        for src in ["print(1 / 0)\n", "print(1 // 0)\n", "print(1 % 0)\n", "print(divmod(1, 0))\n"] {
+            let errors = check(src).expect_err("literal division by zero should fail typecheck");
+            assert!(
+                errors.iter().any(|e| e.contains("division by zero")),
+                "src={src:?} errors={errors:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn variable_division_by_zero_still_typechecks() {
+        check("let d = 0\nprint(10 / d)\n").expect("dynamic zero stays a runtime check");
+    }
+
+    #[test]
+    fn unknown_method_on_known_type_is_rejected() {
+        let errors = check("print([1, 2].keys())\n").expect_err("list has no keys");
+        assert!(
+            errors.iter().any(|e| e.contains("no method")),
+            "unexpected errors: {:?}",
+            errors
+        );
+        let errors = check("print(\"hi\".append(1))\n").expect_err("string has no append");
+        assert!(
+            errors.iter().any(|e| e.contains("no method")),
+            "unexpected errors: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn non_callable_values_are_rejected() {
+        let errors = check("let x = 1\nprint(x())\n").expect_err("int is not callable");
+        assert!(
+            errors.iter().any(|e| e.contains("not callable")),
+            "unexpected errors: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn len_rejects_non_lengthable_types() {
+        let errors = check("print(len(3))\n").expect_err("len(int) should fail");
+        assert!(
+            errors.iter().any(|e| e.contains("len()")),
+            "unexpected errors: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn range_zero_step_is_rejected() {
+        let errors = check("print(range(0, 10, 0))\n").expect_err("zero step");
+        assert!(
+            errors.iter().any(|e| e.contains("step must not be zero")),
             "unexpected errors: {:?}",
             errors
         );
