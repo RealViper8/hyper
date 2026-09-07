@@ -1,6 +1,5 @@
 # Hyper
 
-
 The repository ships a Cranelift-based **compiler** (`hyper run` / `hyper compile`) and this mdBook. Hyper is **compiler-only** — there is no interpreter. v0.1 targets real small programs on the compile path; the [full vision](overview/why-hyper.md) describes where Hyper is going.
 
 ## Quick start
@@ -12,8 +11,6 @@ cargo run -- compile your_file.hyp
 ```
 
 Build instructions, flags, and mdBook setup: [Building from source](building.md).
-
----
 
 ## How this book is organized
 
@@ -37,27 +34,23 @@ doc/
 
 Browse chapters from the sidebar ([`SUMMARY.md`](SUMMARY.md)) or use the map below.
 
----
-
 ## Documentation map
 
 | Section | Document | What you will find |
 |:--------|:---------|:-------------------|
-| **Introduction** | [readme.md](readme.md) | Orientation, layout, quick start |
-| **Building** | [building.md](building.md) | Prerequisites, `cargo build`, CLI subcommands, mdBook |
-| **Why Hyper** | [overview/why-hyper.md](overview/why-hyper.md) | Official vision: Python compat, speed, AI, safety |
-| **First release** | [overview/first-release-scope.md](overview/first-release-scope.md) | v0.1 readiness checklist |
-| **Dual backend** | [toolchain/dual-backend.md](toolchain/dual-backend.md) | When to use `run` vs `compile`; long-term direction |
-| **Language reference** | [langref/README.md](langref/README.md) | Written reference for every language topic (mirrors `examples/`) |
-| **Compiler overview** | [compiler/overview.md](compiler/overview.md) | AST → IR → Cranelift pipeline; flags |
-| **Supported features** | [compiler/supported-features.md](compiler/supported-features.md) | Constructs lowered by `hyper compile` today |
-| **Known limitations** | [compiler/known-limitations.md](compiler/known-limitations.md) | Unimplemented or partial compile paths |
-| **File handling** | [standard-library/file-handling.md](standard-library/file-handling.md) | `open`, `with`, file methods, `open_mmap` |
-| **JSON module** | [standard-library/json-module.md](standard-library/json-module.md) | `import json`; `loads`, `dumps`, `load`, `dump` |
-| **Error kinds** | [errors/overview.md](errors/overview.md) | `SyntaxError`, `IndentationError`, `RuntimeError`; exit codes |
-| **Contributing** | [COMMIT_CONVENTION.md](COMMIT_CONVENTION.md) | Commit message prefixes |
-
----
+| Introduction | [readme.md](readme.md) | Orientation, layout, quick start |
+| Building | [building.md](building.md) | Prerequisites, `cargo build`, CLI subcommands, mdBook |
+| Why Hyper | [overview/why-hyper.md](overview/why-hyper.md) | Official vision: Python compat, speed, AI, safety |
+| First release | [overview/first-release-scope.md](overview/first-release-scope.md) | v0.1 readiness checklist |
+| Dual backend | [toolchain/dual-backend.md](toolchain/dual-backend.md) | When to use `run` vs `compile`; long-term direction |
+| Language reference | [langref/README.md](langref/README.md) | Written reference for every language topic (mirrors `examples/`) |
+| Compiler overview | [compiler/overview.md](compiler/overview.md) | AST → IR → Cranelift pipeline; flags |
+| Supported features | [compiler/supported-features.md](compiler/supported-features.md) | Constructs lowered by `hyper compile` today |
+| Known limitations | [compiler/known-limitations.md](compiler/known-limitations.md) | Unimplemented or partial compile paths |
+| File handling | [standard-library/file-handling.md](standard-library/file-handling.md) | `open`, `with`, file methods, `open_mmap` |
+| JSON module | [standard-library/json-module.md](standard-library/json-module.md) | `import json`; `loads`, `dumps`, `load`, `dump` |
+| Error kinds | [errors/overview.md](errors/overview.md) | `SyntaxError`, `IndentationError`, `RuntimeError`; exit codes |
+| Contributing | [COMMIT_CONVENTION.md](COMMIT_CONVENTION.md) | Commit message prefixes |
 
 ## Code samples (`doc/examples/`)
 
@@ -84,8 +77,6 @@ Run a sample from the repository root:
 cargo run -- run doc/examples/io/print.hyp
 ```
 
----
-
 ## Errors: reference vs runnable demos
 
 Two locations serve different purposes. They are **not** duplicates.
@@ -97,9 +88,3 @@ Two locations serve different purposes. They are **not** duplicates.
 | **Typical use** | Read before writing tests or CI checks | `hyper run doc/examples/errors/runtime_error.hyp` |
 
 Full reference: [Error kinds](errors/overview.md).
-
----
-
-## Development status
-
-Hyper **v0.1.0** is tagged and released. See the [CHANGELOG](../CHANGELOG.md) and [GitHub Releases](https://github.com/muhammadyusufpov/hyper/releases). Remaining gaps are listed in [Known limitations](compiler/known-limitations.md). The original [first release checklist](overview/first-release-scope.md) documents what v0.1 aimed to ship.
