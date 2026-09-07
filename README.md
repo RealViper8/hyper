@@ -20,10 +20,12 @@ Architecture draws from **Rust-style safety** (memory safety as a first-class go
 
 ## Why Hyper?
 
+Hyper exists so teams can keep a **Python-shaped** workflow while getting **systems-level** speed and control. The points below are the design bets that drive the language and toolchain:
+
 - **Python-compatible surface:** Readable, indentation-based syntax; a path toward running existing Python-oriented code and libraries in Hyper.
 - **Maximum speed and efficiency:** Native compilation (Cranelift JIT and AOT), buffered I/O, and low runtime overhead — built to rival systems languages on performance-critical code.
 - **Built for artificial intelligence:** First-class focus on training workloads, tensor-style numerics, and processing very large datasets without interpreter bottlenecks.
-- **Security and modern architecture:** Memory-safe implementation strategy, clear error reporting, and parallel execution (`@parallel`, `@vectorize`) as the platform matures.
+- **Security and modern architecture:** Memory-safe implementation strategy, clear error reporting, and parallel execution as the platform matures.
 
 ## Building from source
 
