@@ -198,6 +198,55 @@ jobs:
           test "$compile_code" -eq 70
           "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/dz_run.txt" "$HYPER_TMP/dz_compile.txt"
 
+      - name: Division by zero modulo
+        run: |
+          set +e
+          cargo run --quiet -- run ci/control/divzero_mod.hyp > "$HYPER_TMP/dzm_run.txt" 2>&1
+          run_code=$?
+          cargo run --quiet -- compile ci/control/divzero_mod.hyp > "$HYPER_TMP/dzm_compile.txt" 2>&1
+          compile_code=$?
+          set -e
+          test "$run_code" -eq 70
+          test "$compile_code" -eq 70
+          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/dzm_run.txt" "$HYPER_TMP/dzm_compile.txt"
+
+      - name: Literal divison by zero modulo
+        run: |
+          set +e
+          cargo run --quiet -- run ci/control/literal_divzero_mod.hyp > "$HYPER_TMP/ldzm_run.txt" 2>&1
+          run_code=$?
+          cargo run --quiet -- compile ci/control/literal_divzero_mod.hyp > "$HYPER_TMP/ldzm_compile.txt" 2>&1
+          compile_code=$?
+          set -e
+          test "$run_code" -eq 65
+          test "$compile_code" -eq 65
+          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/ldzm_run.txt" "$HYPER_TMP/ldzm_compile.txt"
+
+      - name: Division by zero (divmod)
+        run: |
+          set +e
+          cargo run --quiet -- run ci/control/divzero_divmod.hyp > "$HYPER_TMP/dzd_run.txt" 2>&1
+          run_code=$?
+          cargo run --quiet -- compile ci/control/divzero_divmod.hyp > "$HYPER_TMP/dzd_compile.txt" 2>&1
+          compile_code=$?
+          set -e
+          test "$run_code" -eq 70
+          test "$compile_code" -eq 70
+          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/dzd_run.txt" "$HYPER_TMP/dzd_compile.txt"
+
+      - name: Literal division by zero (divmod)
+        run: |
+          set +e
+          cargo run --quiet -- run ci/control/literal_divzero_divmod.hyp > "$HYPER_TMP/ldzd_run.txt" 2>&1
+          run_code=$?
+          cargo run --quiet -- compile ci/control/literal_divzero_divmod.hyp > "$HYPER_TMP/ldzd_compile.txt" 2>&1
+          compile_code=$?
+          set -e
+          test "$run_code" -eq 65
+          test "$compile_code" -eq 65
+          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/ldzd_run.txt" "$HYPER_TMP/ldzd_compile.txt"
+
+
       - name: Literal division by zero (compile-time)
         run: |
           set +e

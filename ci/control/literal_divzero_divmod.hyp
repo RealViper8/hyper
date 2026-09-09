@@ -1,0 +1,2 @@
+# Literal zero is rejected before codegen (SyntaxError / typecheck).
+print(divmod(10, 0))   

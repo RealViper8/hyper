@@ -1,0 +1,5 @@
+# Integer divmod by zero must stop with the same error on every path.
+print("before")
+let d = 0
+print(divmod(10, d))
+print("after")   
