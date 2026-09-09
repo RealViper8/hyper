@@ -77,12 +77,12 @@ jobs:
           cat > "$HYPER_TMP/diff_lf.sh" << 'EOF'
           #!/usr/bin/env bash
           set -euo pipefail
-          # Ignore CR so Windows AOT (CRLF) matches JIT (LF).
+          # Ignore CR so Windows AOT stdout (CRLF) matches Unix AOT (LF).
           diff -u <(tr -d '\r' < "$1") <(tr -d '\r' < "$2")
           EOF
           chmod +x "$HYPER_TMP/diff_lf.sh"
 
-      - name: Run (JIT) smoke
+      - name: Run (AOT) smoke
         run: cargo run --quiet -- run ci/smoke.hyp
 
       - name: Shared list smoke
@@ -95,7 +95,7 @@ jobs:
           cargo run --quiet -- compile ci/io_compile.hyp
           rm -f ci_compile_io.txt
 
-      - name: Compiler JIT smoke
+      - name: Compiler AOT smoke
         run: cargo run --quiet -- compile ci/smoke.hyp
 
       - name: Compiler JSON smoke
@@ -131,9 +131,9 @@ jobs:
 
       - name: Raise and handle smoke
         run: |
-          cargo run --quiet -- compile ci/raise_handle.hyp > "$HYPER_TMP/rh_jit.txt"
+          cargo run --quiet -- compile ci/raise_handle.hyp > "$HYPER_TMP/rh_compile.txt"
           cargo run --quiet -- run ci/raise_handle.hyp > "$HYPER_TMP/rh_run.txt"
-          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/rh_run.txt" "$HYPER_TMP/rh_jit.txt"
+          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/rh_run.txt" "$HYPER_TMP/rh_compile.txt"
 
       - name: Traits smoke
         run: cargo run --quiet -- compile ci/traits_compile.hyp
@@ -176,19 +176,19 @@ jobs:
         run: |
           cargo run --quiet -- compile ci/raise_handle.hyp --emit-exe "$HYPER_TMP/hyper_rh"
           "$HYPER_TMP/run_exe.sh" "$HYPER_TMP/hyper_rh" > "$HYPER_TMP/rh_exe.txt"
-          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/rh_jit.txt" "$HYPER_TMP/rh_exe.txt"
+          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/rh_compile.txt" "$HYPER_TMP/rh_exe.txt"
 
       - name: Division by zero
         run: |
           set +e
           cargo run --quiet -- run ci/divzero.hyp > "$HYPER_TMP/dz_run.txt" 2>&1
           run_code=$?
-          cargo run --quiet -- compile ci/divzero.hyp > "$HYPER_TMP/dz_jit.txt" 2>&1
-          jit_code=$?
+          cargo run --quiet -- compile ci/divzero.hyp > "$HYPER_TMP/dz_compile.txt" 2>&1
+          compile_code=$?
           set -e
           test "$run_code" -eq 70
-          test "$jit_code" -eq 70
-          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/dz_run.txt" "$HYPER_TMP/dz_jit.txt"
+          test "$compile_code" -eq 70
+          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/dz_run.txt" "$HYPER_TMP/dz_compile.txt"
 
       - name: Literal division by zero (compile-time)
         run: |
@@ -206,15 +206,15 @@ jobs:
       - name: Run and compile output parity
         run: |
           cargo run --quiet -- run ci/smoke.hyp > "$HYPER_TMP/out_run.txt"
-          cargo run --quiet -- compile ci/smoke.hyp > "$HYPER_TMP/out_jit.txt"
+          cargo run --quiet -- compile ci/smoke.hyp > "$HYPER_TMP/out_compile.txt"
           "$HYPER_TMP/run_exe.sh" "$HYPER_TMP/hyper_smoke" > "$HYPER_TMP/out_exe.txt"
-          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/out_run.txt" "$HYPER_TMP/out_jit.txt"
+          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/out_run.txt" "$HYPER_TMP/out_compile.txt"
           "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/out_run.txt" "$HYPER_TMP/out_exe.txt"
 
       - name: Break and continue output parity
         run: |
           cargo run --quiet -- run ci/break_continue.hyp > "$HYPER_TMP/bc_run.txt"
-          cargo run --quiet -- compile ci/break_continue.hyp > "$HYPER_TMP/bc_jit.txt"
+          cargo run --quiet -- compile ci/break_continue.hyp > "$HYPER_TMP/bc_compile.txt"
           "$HYPER_TMP/run_exe.sh" "$HYPER_TMP/hyper_bc" > "$HYPER_TMP/bc_exe.txt"
-          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/bc_run.txt" "$HYPER_TMP/bc_jit.txt"
+          "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/bc_run.txt" "$HYPER_TMP/bc_compile.txt"
           "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/bc_run.txt" "$HYPER_TMP/bc_exe.txt"
