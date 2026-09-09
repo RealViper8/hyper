@@ -10,28 +10,28 @@ Everything lives in a **single Cargo package** (`hyper`). The `src/` tree holds 
 | `semantic.rs` | Type checker |
 | `environment.rs` | Host `HyperValue` bridge for JSON (not an execution backend) |
 | `fileio.rs`, `json.rs`, `module.rs` | Shared I/O / JSON / module resolution used by the compile runtime |
-| `compiler/` (`ir`, `lowering`, `codegen`, `runtime`) | IR, Cranelift codegen, JIT/AOT runtime |
+| `compiler/` (`ir`, `lowering`, `codegen`, `llvm_emit`, `runtime`) | IR, LLVM + Cranelift AOT codegen, C runtime for linking |
 | `main.rs` | CLI (`tokenize`, `parse`, `run`, `typecheck`, `compile`, …) |
 
 ## Prerequisites
 
 - [Rust](https://www.rust-lang.org/tools/install) (stable) — `cargo` + `rustc`
 - Git
-- **Optional (`--emit-exe`):** a host C toolchain to link the AOT runtime
+- **C toolchain (required for `run` / `compile` / `--emit-exe`):** Hyper is AOT-only. Everyday execution emits a temporary executable and links the C runtime, so a host linker is required even when you are not keeping an `--emit-exe` artifact.
 
 Hyper targets **Linux, macOS, and Windows** equally. WSL is **not** required on Windows.
 
-### C toolchain for `--emit-exe`
+### C toolchain
 
-| Platform | Typical compilers (first found wins; override with `CC`) |
-|----------|----------------------------------------------------------|
-| Linux | `cc`, `clang`, or `gcc` (usually preinstalled) |
+| Platform | Typical compilers |
+|----------|-------------------|
+| Linux | `clang` (**required** for default LLVM AOT); `gcc`/`cc` OK for Cranelift AOT |
 | macOS | `clang` via Xcode Command Line Tools |
-| Windows | `clang`, `clang-cl`, MinGW `gcc`, or MSVC `cl` (Visual Studio Build Tools) |
+| Windows | `clang` / `clang-cl` for LLVM AOT; MinGW `gcc` or MSVC `cl` also work for Cranelift AOT |
 
-On Windows, install any one of: [LLVM](https://releases.llvm.org/) (clang), [MinGW-w64](https://www.mingw-w64.org/), or [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the C++ workload. Then `hyper compile file.hyp --emit-exe app` works natively (Hyper adds `.exe` when needed).
+Override the linker/compiler with `CC` where applicable. Select the AOT backend with `HYPER_CODEGEN=llvm|cranelift` or `--backend llvm|cranelift` (default **llvm**). See [Dual backends](toolchain/dual-backend.md).
 
-JIT (`hyper run` / `hyper compile` without `--emit-exe`) needs only Rust — no C compiler.
+On Windows, install any one of: [LLVM](https://releases.llvm.org/) (clang), [MinGW-w64](https://www.mingw-w64.org/), or [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the C++ workload. Then `hyper run`, `hyper compile`, and `hyper compile file.hyp --emit-exe app` work natively (Hyper adds `.exe` when needed).
 
 ## Clone and build
 
@@ -56,19 +56,22 @@ cargo build --release
 
 ## Run a program
 
-Hyper is **compiler-only**. `run` and `compile` both use Cranelift JIT:
+Hyper is **compiler-only** and **AOT-only**. By default, `run` / `compile` lower to **LLVM IR**, invoke **clang** with the C runtime, run the temp binary, and delete it. Opt into Cranelift with `--backend cranelift` or `HYPER_CODEGEN=cranelift`.
 
 ```bash
 cargo run -- run your_file.hyp
 cargo run -- compile your_file.hyp
+cargo run -- run your_file.hyp --backend cranelift
+# or: HYPER_CODEGEN=cranelift cargo run -- run your_file.hyp
 ```
 
 **Compiler (dump IR / emit artifacts):**
 
 ```bash
 cargo run -- compile your_file.hyp --emit-ir
-cargo run -- compile your_file.hyp --emit-obj out.o
-cargo run -- compile your_file.hyp --emit-exe my_app
+cargo run -- compile your_file.hyp --emit-llvm out.ll  # LLVM IR
+cargo run -- compile your_file.hyp --emit-obj out.o    # Cranelift object
+cargo run -- compile your_file.hyp --emit-exe my_app   # keep AOT binary
 ```
 
 ## Quick sanity check
@@ -78,7 +81,7 @@ cargo run -- run ci/smoke.hyp
 cargo run -- compile ci/smoke.hyp
 ```
 
-Both should finish without syntax errors and print the same output.
+Both should finish without syntax errors and print the same output (both AOT-execute).
 
 ## Docs site (optional)
 
