@@ -83,69 +83,69 @@ jobs:
           chmod +x "$HYPER_TMP/diff_lf.sh"
 
       - name: Run (AOT) smoke
-        run: cargo run --quiet -- run ci/smoke.hyp
+        run: cargo run --quiet -- run ci/smoke/smoke.hyp
 
       - name: Shared list smoke
         run: |
-          cargo run --quiet -- run ci/ref_list_share.hyp
-          cargo run --quiet -- compile ci/ref_list_share.hyp
+          cargo run --quiet -- run ci/lang/ref_list_share.hyp
+          cargo run --quiet -- compile ci/lang/ref_list_share.hyp
 
       - name: File I/O smoke
         run: |
-          cargo run --quiet -- compile ci/io_compile.hyp
+          cargo run --quiet -- compile ci/io/io_compile.hyp
           rm -f ci_compile_io.txt
 
       - name: Compiler AOT smoke
-        run: cargo run --quiet -- compile ci/smoke.hyp
+        run: cargo run --quiet -- compile ci/smoke/smoke.hyp
 
       - name: Compiler JSON smoke
         run: |
-          cargo run --quiet -- compile ci/json_compile.hyp
+          cargo run --quiet -- compile ci/io/json_compile.hyp
           rm -f ci_json_compile.json
 
       - name: Compiler mmap smoke
         run: |
-          cargo run --quiet -- compile ci/mmap_compile.hyp
+          cargo run --quiet -- compile ci/io/mmap_compile.hyp
           rm -f ci_compile_mmap.txt
 
       - name: Compiler input smoke
         run: |
-          printf 'hello\nworld\n' | cargo run --quiet -- compile ci/input_compile.hyp
+          printf 'hello\nworld\n' | cargo run --quiet -- compile ci/io/input_compile.hyp
 
       - name: Compiler clock smoke
-        run: cargo run --quiet -- compile ci/clock_compile.hyp
+        run: cargo run --quiet -- compile ci/io/clock_compile.hyp
 
       - name: Compiler collection methods smoke
-        run: cargo run --quiet -- compile ci/collections_compile.hyp
+        run: cargo run --quiet -- compile ci/collections/collections_compile.hyp
 
       - name: Compiler dict hash-map smoke
-        run: cargo run --quiet -- compile ci/dict_compile.hyp
+        run: cargo run --quiet -- compile ci/collections/dict_compile.hyp
       - name: Compiler builtins smoke
-        run: cargo run --quiet -- compile ci/builtins_compile.hyp
+        run: cargo run --quiet -- compile ci/collections/builtins_compile.hyp
 
       - name: Compiler string methods smoke
-        run: cargo run --quiet -- compile ci/strings_compile.hyp
+        run: cargo run --quiet -- compile ci/collections/strings_compile.hyp
 
       - name: Typecheck smoke
         run: cargo run --quiet -- typecheck ci/smoke.hyp
 
       - name: Break and continue smoke
-        run: cargo run --quiet -- compile ci/break_continue.hyp
+        run: cargo run --quiet -- compile ci/control/break_continue.hyp
 
       - name: Raise and handle smoke
         run: |
-          cargo run --quiet -- compile ci/raise_handle.hyp > "$HYPER_TMP/rh_compile.txt"
-          cargo run --quiet -- run ci/raise_handle.hyp > "$HYPER_TMP/rh_run.txt"
+          cargo run --quiet -- compile ci/control/raise_handle.hyp > "$HYPER_TMP/rh_compile.txt"
+          cargo run --quiet -- run ci/control/raise_handle.hyp > "$HYPER_TMP/rh_run.txt"
           "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/rh_run.txt" "$HYPER_TMP/rh_compile.txt"
 
       - name: Traits smoke
-        run: cargo run --quiet -- compile ci/traits_compile.hyp
+        run: cargo run --quiet -- compile ci/lang/traits_compile.hyp
 
       - name: Pub and mut smoke
-        run: cargo run --quiet -- compile ci/pub_mut.hyp
+        run: cargo run --quiet -- compile ci/lang/pub_mut.hyp
 
       - name: Ref smoke
-        run: cargo run --quiet -- compile ci/ref_compile.hyp
+        run: cargo run --quiet -- compile ci/lang/ref_compile.hyp
 
       - name: Integer widths smoke
         run: |
@@ -153,45 +153,45 @@ jobs:
           cargo run --quiet -- compile ci/int_widths.hyp
 
       - name: Vectorize and parallel smoke
-        run: cargo run --quiet -- compile ci/vectorize_compile.hyp
+        run: cargo run --quiet -- compile ci/lang/vectorize_compile.hyp
 
       - name: Compiler emit-exe smoke
         run: |
-          cargo run --quiet -- compile ci/smoke.hyp --emit-exe "$HYPER_TMP/hyper_smoke"
+          cargo run --quiet -- compile ci/smoke/smoke.hyp --emit-exe "$HYPER_TMP/hyper_smoke"
           "$HYPER_TMP/run_exe.sh" "$HYPER_TMP/hyper_smoke"
 
       - name: Compiler emit-exe collections smoke
         run: |
-          cargo run --quiet -- compile ci/collections_compile.hyp --emit-exe "$HYPER_TMP/hyper_coll"
+          cargo run --quiet -- compile ci/collections/collections_compile.hyp --emit-exe "$HYPER_TMP/hyper_coll"
           "$HYPER_TMP/run_exe.sh" "$HYPER_TMP/hyper_coll"
 
       - name: Compiler emit-exe dict hash-map smoke
         run: |
-          cargo run --quiet -- compile ci/dict_compile.hyp --emit-exe "$HYPER_TMP/hyper_dict"
+          cargo run --quiet -- compile ci/collections/dict_compile.hyp --emit-exe "$HYPER_TMP/hyper_dict"
           "$HYPER_TMP/run_exe.sh" "$HYPER_TMP/hyper_dict"
 
       - name: Compiler emit-exe strings smoke
         run: |
-          cargo run --quiet -- compile ci/strings_compile.hyp --emit-exe "$HYPER_TMP/hyper_str"
+          cargo run --quiet -- compile ci/collections/strings_compile.hyp --emit-exe "$HYPER_TMP/hyper_str"
           "$HYPER_TMP/run_exe.sh" "$HYPER_TMP/hyper_str"
 
       - name: Compiler emit-exe break and continue smoke
         run: |
-          cargo run --quiet -- compile ci/break_continue.hyp --emit-exe "$HYPER_TMP/hyper_bc"
+          cargo run --quiet -- compile ci/control/break_continue.hyp --emit-exe "$HYPER_TMP/hyper_bc"
           "$HYPER_TMP/run_exe.sh" "$HYPER_TMP/hyper_bc"
 
       - name: Compiler emit-exe raise and handle smoke
         run: |
-          cargo run --quiet -- compile ci/raise_handle.hyp --emit-exe "$HYPER_TMP/hyper_rh"
+          cargo run --quiet -- compile ci/control/raise_handle.hyp --emit-exe "$HYPER_TMP/hyper_rh"
           "$HYPER_TMP/run_exe.sh" "$HYPER_TMP/hyper_rh" > "$HYPER_TMP/rh_exe.txt"
           "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/rh_compile.txt" "$HYPER_TMP/rh_exe.txt"
 
       - name: Division by zero
         run: |
           set +e
-          cargo run --quiet -- run ci/divzero.hyp > "$HYPER_TMP/dz_run.txt" 2>&1
+          cargo run --quiet -- run ci/control/divzero.hyp > "$HYPER_TMP/dz_run.txt" 2>&1
           run_code=$?
-          cargo run --quiet -- compile ci/divzero.hyp > "$HYPER_TMP/dz_compile.txt" 2>&1
+          cargo run --quiet -- compile ci/control/divzero.hyp > "$HYPER_TMP/dz_compile.txt" 2>&1
           compile_code=$?
           set -e
           test "$run_code" -eq 70
@@ -201,9 +201,9 @@ jobs:
       - name: Literal division by zero (compile-time)
         run: |
           set +e
-          cargo run --quiet -- typecheck ci/literal_divzero.hyp > "$HYPER_TMP/ldz.txt" 2>&1
+          cargo run --quiet -- typecheck ci/control/literal_divzero.hyp > "$HYPER_TMP/ldz.txt" 2>&1
           tc_code=$?
-          cargo run --quiet -- compile ci/literal_divzero.hyp > "$HYPER_TMP/ldz_c.txt" 2>&1
+          cargo run --quiet -- compile ci/control/literal_divzero.hyp > "$HYPER_TMP/ldz_c.txt" 2>&1
           c_code=$?
           set -e
           test "$tc_code" -eq 65
@@ -213,16 +213,16 @@ jobs:
 
       - name: Run and compile output parity
         run: |
-          cargo run --quiet -- run ci/smoke.hyp > "$HYPER_TMP/out_run.txt"
-          cargo run --quiet -- compile ci/smoke.hyp > "$HYPER_TMP/out_compile.txt"
+          cargo run --quiet -- run ci/smoke/smoke.hyp > "$HYPER_TMP/out_run.txt"
+          cargo run --quiet -- compile ci/smoke/smoke.hyp > "$HYPER_TMP/out_compile.txt"
           "$HYPER_TMP/run_exe.sh" "$HYPER_TMP/hyper_smoke" > "$HYPER_TMP/out_exe.txt"
           "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/out_run.txt" "$HYPER_TMP/out_compile.txt"
           "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/out_run.txt" "$HYPER_TMP/out_exe.txt"
 
       - name: Break and continue output parity
         run: |
-          cargo run --quiet -- run ci/break_continue.hyp > "$HYPER_TMP/bc_run.txt"
-          cargo run --quiet -- compile ci/break_continue.hyp > "$HYPER_TMP/bc_compile.txt"
+          cargo run --quiet -- run ci/control/break_continue.hyp > "$HYPER_TMP/bc_run.txt"
+          cargo run --quiet -- compile ci/control/break_continue.hyp > "$HYPER_TMP/bc_compile.txt"
           "$HYPER_TMP/run_exe.sh" "$HYPER_TMP/hyper_bc" > "$HYPER_TMP/bc_exe.txt"
           "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/bc_run.txt" "$HYPER_TMP/bc_compile.txt"
           "$HYPER_TMP/diff_lf.sh" "$HYPER_TMP/bc_run.txt" "$HYPER_TMP/bc_exe.txt"
