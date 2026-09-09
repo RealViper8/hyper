@@ -126,6 +126,9 @@ jobs:
       - name: Compiler string methods smoke
         run: cargo run --quiet -- compile ci/strings_compile.hyp
 
+      - name: Typecheck smoke
+        run: cargo run --quiet -- typecheck ci/smoke.hyp
+
       - name: Break and continue smoke
         run: cargo run --quiet -- compile ci/break_continue.hyp
 
