@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Hyper is **compiler-only**. Say whether you need this for **JIT (`run`/`compile`)**, **`--emit-exe`**, or tooling/docs.
+        Hyper is **compiler-only** and **AOT-only**. Say whether you need this for **`run`/`compile`**, **`--emit-exe`**, or tooling/docs.
 
   - type: textarea
     id: problem
@@ -30,7 +30,7 @@ body:
     attributes:
       label: Needed on
       options:
-        - JIT (`hyper run` / `hyper compile`)
+        - AOT run (`hyper run` / `hyper compile`)
         - native binary (`hyper compile --emit-exe`)
         - both
         - tooling / docs / CI only
