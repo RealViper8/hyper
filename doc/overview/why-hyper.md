@@ -17,7 +17,7 @@ v0.1 does not claim every Python feature or every third-party wheel yet; the **d
 
 Hyper targets **C and C++-grade memory discipline** and **direct use of hardware**:
 
-- **CPU:** native code via Cranelift (JIT and `--emit-exe`), buffered I/O, and low runtime overhead.
+- **CPU:** native AOT code via Cranelift object codegen and clang/host linking, buffered I/O, and low runtime overhead.
 - **GPU and SIMD:** the language surface includes `@vectorize` and parallel loop forms; codegen for real GPU backends is on the roadmap, with sequential lowering today where parallelism is not yet emitted.
 
 Programs that spend time in tight numeric loops and data pipelines are expected to run **10×–100× faster** than equivalent CPython — the range depends on workload, but that order of magnitude is the design target, not an afterthought.
@@ -47,7 +47,7 @@ The goal is **safe concurrency** plus **predictable performance**, not “fast b
 | Area | Today |
 |------|--------|
 | **Syntax** | Python-shaped core: functions, structs, modules, collections, typed bindings |
-| **Execution** | `hyper run` / `hyper compile` (Cranelift JIT); `--emit-exe` for AOT — **no interpreter** |
+| **Execution** | `hyper run` / `hyper compile` (AOT temp exe); `--emit-exe` to keep a binary — **no interpreter, no JIT** |
 | **I/O & JSON** | `open`, `with`, file methods, `open_mmap`, `import json`, `input()` on the compile path |
 | **Parallelism** | `@parallel` / `@vectorize` parse and run; compiler emits sequential loops until thread/GPU backends land |
 | **Gaps** | Generics, full Python/stdlib parity — see [Known limitations](../compiler/known-limitations.md) |
@@ -62,7 +62,7 @@ The goal is **safe concurrency** plus **predictable performance**, not “fast b
 
 ## Where Hyper is headed
 
-1. **Now** — Compiler-only toolchain; CI smokes for JIT and `--emit-exe`.
+1. **Now** — Compiler-only, AOT-only toolchain; CI smokes for `run` / `compile` and `--emit-exe`.
 2. **Next** — Deeper Python/library interop, real `@parallel` codegen, GPU backends.
 3. **Long term** — Hyper as the default runtime for **Python-compatible, AI-scale, native-speed** code.
 

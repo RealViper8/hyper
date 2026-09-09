@@ -1,6 +1,6 @@
 # Compiler supported features
 
-This list reflects what **`hyper compile`** can lower today (JIT and `--emit-exe`). For syntax samples see `doc/examples/`.
+This list reflects what **`hyper compile`** / **`hyper run`** can lower today (AOT). For syntax samples see `doc/examples/`.
 
 ## Language constructs
 
@@ -26,7 +26,7 @@ This list reflects what **`hyper compile`** can lower today (JIT and `--emit-exe
 | `input(prompt?)` | Stdin line read |
 | `clock()` | Seconds since UNIX epoch (`f64`) |
 | Collection methods | list/array `len()`, `append(x)`; dict `len()`, `keys()`; string `len()` |
-| dict get/set | Hash map (`IndexMap` in JIT, open addressing in AOT); insertion order kept |
+| dict get/set | Hash map (open addressing in AOT C runtime); insertion order kept |
 | Builtins | `len`, `abs`, `min`/`max`, `sum`, `round`, `pow`, `divmod`, `chr`/`ord`, `bin`/`hex`/`oct`, `int`/`float`/`str`/`bool`, `all`/`any`, `sorted`, `reversed`, `range`, `enumerate` |
 | String methods | Full Python-compatible set on compile path: `upper`/`lower`/`capitalize`/`title`/`swapcase`, `strip`/`lstrip`/`rstrip`, `startswith`/`endswith`, `split`/`rsplit`, `replace`, `join`, `find`/`rfind`/`index`/`rindex`, `count`, `isdigit`/`isalpha`/`isalnum`/`isspace`/`islower`/`isupper`/`istitle`/`isascii`, `center`/`ljust`/`rjust`/`zfill`, `removeprefix`/`removesuffix`, `partition`/`rpartition` |
 | `import json` | `loads`, `dumps`, `load`, `dump` |
@@ -35,15 +35,15 @@ Integer `/`, `%`, `//` guard division by zero at runtime.
 
 ## Codegen modes
 
-- JIT via Cranelift (`hyper compile`)
-- Object emission (`--emit-obj`)
-- Executable linking with C runtime (`--emit-exe`)
+- AOT run via temp executable (`hyper run` / `hyper compile`)
+- Cranelift object emission (`--emit-obj`) — Hyper-IR → machine object
+- Executable linking with C runtime (`--emit-exe`); linker prefers LLVM `clang`
 
 ## CI-verified programs
 
 | Program | What it checks |
 |---------|----------------|
-| `ci/smoke.hyp` | Core language; run / JIT / `--emit-exe` output parity |
+| `ci/smoke.hyp` | Core language; `run` / `compile` / `--emit-exe` output parity |
 | `ci/divzero.hyp` | `RuntimeError` exit code 70 |
 | `ci/io_compile.hyp` | File I/O on compile path |
 | `ci/json_compile.hyp` | JSON module on compile path |
@@ -51,10 +51,10 @@ Integer `/`, `%`, `//` guard division by zero at runtime.
 | `ci/input_compile.hyp` | `input()` on compile path |
 | `ci/clock_compile.hyp` | `clock()` on compile path |
 | `ci/collections_compile.hyp` | list/array/dict `len`, `append`, `keys` on compile path |
-| `ci/dict_compile.hyp` | 256-key dict get/set, overwrite, insertion-order print/keys() (JIT and `--emit-exe`) |
+| `ci/dict_compile.hyp` | 256-key dict get/set, overwrite, insertion-order print/keys() |
 | `ci/builtins_compile.hyp` | Builtins (`len`/`abs`/`enumerate`/`zip`/`range`/…) on compile path |
-| `ci/strings_compile.hyp` | string methods on compile path (JIT and `--emit-exe`) |
-| `ci/break_continue.hyp` | `break` / `continue` in `while`, `for` and `for-in`; run / JIT / `--emit-exe` output parity |
+| `ci/strings_compile.hyp` | string methods on compile path |
+| `ci/break_continue.hyp` | `break` / `continue` in `while`, `for` and `for-in`; output parity |
 | `ci/raise_handle.hyp` | `raise` / `raises` / `handle` on run and compile |
 | `ci/traits_compile.hyp` | Trait conformance on compile path |
 | `ci/pub_mut.hyp` | `pub` / `mut` field rules on compile path |

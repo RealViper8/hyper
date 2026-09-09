@@ -57,6 +57,7 @@ hyper run doc/examples/errors/raise_handle.hyp
 ## `run` vs `compile`
 
 - Parser and scanner errors are always `SyntaxError` / `IndentationError` regardless of command.
-- Under `compile`, semantic/type failures are reported as `SyntaxError` and block codegen.
+- Under `compile` and `run`, semantic/type failures are reported as `SyntaxError` and block codegen (including literal division by zero, unknown methods on known types, non-callable calls, and bad builtin arity/operands).
+- Dynamic failures that cannot be proven statically (for example `let d = 0; print(10 / d)`, I/O, uncaught `raise`) remain `RuntimeError` at execution time.
 - Under `run`, the same type issues may appear as **`warning:`** on stderr while execution continues.
 - `raise` / `handle` lower on both backends.
