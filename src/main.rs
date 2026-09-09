@@ -21,16 +21,21 @@ fn main() {
             io::stderr(),
             "Usage: {} <tokenize|parse|run|typecheck|compile> <filename> [options]\n\
              \n\
-             run <file>                        JIT execute (Cranelift)\n\
-             compile <file>                    JIT execute\n\
-             compile <file> --emit-ir          print IR only\n\
-             compile <file> --emit-obj [path]  emit object (default a.o)\n\
-             compile <file> --emit-exe [path]  emit executable (default hyper_out)\n\
-             typecheck <file>                  typecheck only",
+             run <file>                          AOT compile to a temp exe and run it\n\
+             compile <file>                      same AOT run (default)\n\
+             compile <file> --emit-ir            print Hyper IR only\n\
+             compile <file> --emit-llvm [path]   emit LLVM IR (default out.ll)\n\
+             compile <file> --emit-obj [path]    emit Cranelift object (default a.o)\n\
+             compile <file> --emit-exe [path]    emit AOT executable (default hyper_out)\n\
+             --backend llvm|cranelift            AOT backend (also HYPER_CODEGEN)\n\
+             typecheck <file>                    typecheck only",
             args[0]
         );
         return;
     }
+
+    // Apply --backend before any compile/run so HYPER_CODEGEN is set for codegen.
+    apply_backend_flag(&args);
 
     let command = &args[1];
     let filename = &args[2];
@@ -48,12 +53,16 @@ fn main() {
             parser::run_parse(file_contents);
         }
         "run" => {
-            // Compiler-only: same Cranelift JIT path as `compile`.
-            if let Err(errors) = compiler::try_jit(&file_contents, filename) {
-                for e in &errors {
-                    error::report_formatted(e);
+            // AOT: emit temp executable, run, propagate exit code.
+            match compiler::try_aot_run(&file_contents, filename) {
+                Ok(0) => {}
+                Ok(code) => std::process::exit(code),
+                Err(errors) => {
+                    for e in &errors {
+                        error::report_formatted(e);
+                    }
+                    std::process::exit(65);
                 }
-                std::process::exit(65);
             }
         }
         "typecheck" => {
@@ -77,23 +86,75 @@ fn main() {
     }
 }
 
-fn parse_compile_mode(args: &[String]) -> compiler::CompileMode {
-    if args.is_empty() {
-        return compiler::CompileMode::Jit;
+fn apply_backend_flag(args: &[String]) {
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--backend" {
+            if let Some(val) = args.get(i + 1) {
+                match val.to_ascii_lowercase().as_str() {
+                    "llvm" => unsafe { env::set_var("HYPER_CODEGEN", "llvm") },
+                    "cranelift" | "clif" => unsafe { env::set_var("HYPER_CODEGEN", "cranelift") },
+                    other => {
+                        let _ = writeln!(
+                            io::stderr(),
+                            "Unknown --backend {other} (expected llvm|cranelift)"
+                        );
+                        std::process::exit(64);
+                    }
+                }
+            } else {
+                let _ = writeln!(io::stderr(), "--backend requires llvm|cranelift");
+                std::process::exit(64);
+            }
+            i += 2;
+            continue;
+        }
+        i += 1;
     }
-    match args[0].as_str() {
+}
+
+fn parse_compile_mode(args: &[String]) -> compiler::CompileMode {
+    let filtered: Vec<&String> = args
+        .iter()
+        .enumerate()
+        .filter(|(i, a)| {
+            if *a == "--backend" {
+                return false;
+            }
+            if *i > 0 && args[*i - 1] == "--backend" {
+                return false;
+            }
+            true
+        })
+        .map(|(_, a)| a)
+        .collect();
+
+    if filtered.is_empty() {
+        return compiler::CompileMode::AotRun;
+    }
+    match filtered[0].as_str() {
         "--emit-ir" => compiler::CompileMode::EmitIr,
-        "--emit-obj" => {
-            let path = args
+        "--emit-llvm" => {
+            let path = filtered
                 .get(1)
                 .cloned()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "out.ll".to_string());
+            compiler::CompileMode::EmitLlvm { path }
+        }
+        "--emit-obj" => {
+            let path = filtered
+                .get(1)
+                .cloned()
+                .map(|s| s.to_string())
                 .unwrap_or_else(|| "a.o".to_string());
             compiler::CompileMode::EmitObj { path }
         }
         "--emit-exe" => {
-            let path = args
+            let path = filtered
                 .get(1)
                 .cloned()
+                .map(|s| s.to_string())
                 .unwrap_or_else(|| "hyper_out".to_string());
             compiler::CompileMode::EmitExe { path }
         }
@@ -101,7 +162,7 @@ fn parse_compile_mode(args: &[String]) -> compiler::CompileMode {
             let _ = writeln!(io::stderr(), "Unknown compile option: {other}");
             let _ = writeln!(
                 io::stderr(),
-                "Expected: --emit-ir | --emit-obj [path] | --emit-exe [path]"
+                "Expected: --emit-ir | --emit-llvm [path] | --emit-obj [path] | --emit-exe [path]"
             );
             std::process::exit(64);
         }

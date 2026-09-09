@@ -1,5 +1,5 @@
 name: Compiler / compile path
-description: Lowering, codegen, JIT, or --emit-exe issue (not general language design).
+description: Lowering, codegen, AOT, or --emit-exe issue (not general language design).
 title: "[Compiler]: "
 labels:
   - compiler
@@ -15,7 +15,7 @@ body:
     attributes:
       label: Compile mode
       options:
-        - JIT (`hyper compile`)
+        - AOT run (`hyper run` / `hyper compile`)
         - Native binary (`hyper compile --emit-exe`)
         - both
     validations:

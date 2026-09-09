@@ -5,8 +5,8 @@ use super::ir::{BlockId, IrFunction, IrInstr, IrModule, IrOp, ValueId};
 use crate::module::{self, ModuleLoadState};
 use crate::semantic;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
-use std::process;
+use std::path::{Path, PathBuf};
+use std::process::{self, Command};
 
 /// Fixed-width integer binding / value tracking for wrap-on-store and wrap-on-op.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2636,15 +2636,46 @@ pub fn lower(stmts: &[Stmt], entry_path: &Path) -> Result<IrModule, Vec<String>>
 }
 
 pub enum CompileMode {
-    Jit,
+    /// Emit a temporary AOT executable, run it, and return its exit code.
+    AotRun,
     EmitIr,
+    /// Write LLVM IR (`.ll`) for inspection / external clang.
+    EmitLlvm { path: String },
+    /// Cranelift object file (Hyper-IR → machine object; rustc_codegen_cranelift niche).
     EmitObj { path: String },
     EmitExe { path: String },
 }
 
-/// Compile and JIT-execute without calling `process::exit`.
-/// Used by `hyper run` (compiler-first) and tests that need fallible compile.
-pub fn try_jit(file_contents: &str, entry_path: &str) -> Result<(), Vec<String>> {
+fn temp_aot_exe_path() -> PathBuf {
+    let mut path = std::env::temp_dir();
+    let name = format!("hyper_aot_{}", std::process::id());
+    #[cfg(windows)]
+    {
+        path.push(format!("{name}.exe"));
+    }
+    #[cfg(not(windows))]
+    {
+        path.push(name);
+    }
+    path
+}
+
+fn aot_run_module(module: &super::ir::IrModule) -> Result<i32, String> {
+    let exe_path = temp_aot_exe_path();
+    let exe_str = exe_path
+        .to_str()
+        .ok_or_else(|| "temp executable path is not valid UTF-8".to_string())?;
+    super::codegen::emit_exe(module, exe_str)?;
+    let status = Command::new(&exe_path)
+        .status()
+        .map_err(|e| format!("failed to execute {exe_str}: {e}"))?;
+    let _ = std::fs::remove_file(&exe_path);
+    Ok(status.code().unwrap_or(70))
+}
+
+/// Compile to a temporary AOT executable, run it, and return the child exit code.
+/// Used by `hyper run` and tests that need fallible compile+execute.
+pub fn try_aot_run(file_contents: &str, entry_path: &str) -> Result<i32, Vec<String>> {
     let stmts = driver::parse_program(file_contents).map_err(|()| {
         vec!["parse error".to_string()]
     })?;
@@ -2654,7 +2685,7 @@ pub fn try_jit(file_contents: &str, entry_path: &str) -> Result<(), Vec<String>>
     }
 
     let module = lower(&stmts, Path::new(entry_path))?;
-    super::codegen::jit_execute(&module).map_err(|msg| vec![msg])
+    aot_run_module(&module).map_err(|msg| vec![msg])
 }
 
 pub fn run_compile(file_contents: String, entry_path: &str, mode: CompileMode) {
@@ -2681,11 +2712,16 @@ pub fn run_compile(file_contents: String, entry_path: &str, mode: CompileMode) {
     };
 
     let result = match mode {
-        CompileMode::Jit => super::codegen::jit_execute(&module),
+        CompileMode::AotRun => match aot_run_module(&module) {
+            Ok(0) => Ok(()),
+            Ok(code) => process::exit(code),
+            Err(msg) => Err(msg),
+        },
         CompileMode::EmitIr => {
             super::codegen::dump_ir(&module);
             Ok(())
         }
+        CompileMode::EmitLlvm { path } => super::codegen::emit_llvm(&module, &path),
         CompileMode::EmitObj { path } => super::codegen::emit_object(&module, &path),
         CompileMode::EmitExe { path } => super::codegen::emit_exe(&module, &path),
     };

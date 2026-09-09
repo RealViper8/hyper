@@ -15,8 +15,8 @@ body:
     attributes:
       label: Where did it happen?
       options:
-        - hyper run (JIT)
-        - hyper compile (JIT)
+        - hyper run (AOT)
+        - hyper compile (AOT)
         - hyper compile --emit-exe
         - cargo test / build
         - other

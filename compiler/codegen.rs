@@ -5,55 +5,38 @@ use cranelift_codegen::ir::immediates::Ieee64;
 use cranelift_codegen::ir::{types, AbiParam, Function, InstBuilder, MemFlags, StackSlotData, StackSlotKind, UserFuncName, Value};
 use cranelift_codegen::settings::{self, Configurable};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Variable};
-use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{default_libcall_names, DataDescription, DataId, FuncId, Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
 use std::collections::{HashMap, HashSet};
-use std::mem;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::runtime::{
-    hyper_rt_dict_get, hyper_rt_dict_new, hyper_rt_dict_push, hyper_rt_dict_set,
-    hyper_rt_file_close, hyper_rt_file_flush, hyper_rt_file_is_closed, hyper_rt_file_mode,
-    hyper_rt_file_open, hyper_rt_file_path, hyper_rt_file_read_all, hyper_rt_file_read_n,
-    hyper_rt_file_readline, hyper_rt_file_readlines, hyper_rt_file_seek, hyper_rt_file_size,
-    hyper_rt_file_tell, hyper_rt_file_write, hyper_rt_file_writelines,
-    hyper_rt_json_dump, hyper_rt_json_dumps, hyper_rt_json_load, hyper_rt_json_loads,
-    hyper_rt_mmap_close, hyper_rt_mmap_open, hyper_rt_mmap_read_chunk,
-    hyper_rt_coll_append, hyper_rt_coll_keys, hyper_rt_coll_len,
-    hyper_rt_builtin_abs, hyper_rt_builtin_all, hyper_rt_builtin_any, hyper_rt_builtin_bin,
-    hyper_rt_builtin_bool, hyper_rt_builtin_chr, hyper_rt_builtin_divmod, hyper_rt_builtin_float,
-    hyper_rt_builtin_hex, hyper_rt_builtin_int, hyper_rt_builtin_len, hyper_rt_builtin_max,
-    hyper_rt_builtin_min, hyper_rt_builtin_oct, hyper_rt_builtin_ord, hyper_rt_builtin_pow,
-    hyper_rt_builtin_reversed, hyper_rt_builtin_round, hyper_rt_builtin_sorted,
-    hyper_rt_builtin_str, hyper_rt_builtin_sum, hyper_rt_builtin_enumerate, hyper_rt_builtin_list,
-    hyper_rt_builtin_range, hyper_rt_builtin_repr, hyper_rt_builtin_zip,
-    hyper_rt_str_capitalize, hyper_rt_str_center, hyper_rt_str_count, hyper_rt_str_endswith,
-    hyper_rt_str_find, hyper_rt_str_index, hyper_rt_str_isalnum, hyper_rt_str_isalpha,
-    hyper_rt_str_isascii, hyper_rt_str_isdigit, hyper_rt_str_islower, hyper_rt_str_isspace,
-    hyper_rt_str_istitle, hyper_rt_str_isupper, hyper_rt_str_join, hyper_rt_str_ljust,
-    hyper_rt_str_lower, hyper_rt_str_lstrip, hyper_rt_str_partition, hyper_rt_str_removeprefix,
-    hyper_rt_str_removesuffix, hyper_rt_str_replace, hyper_rt_str_rfind, hyper_rt_str_rindex,
-    hyper_rt_str_rjust, hyper_rt_str_rpartition, hyper_rt_str_rsplit, hyper_rt_str_rstrip,
-    hyper_rt_str_split, hyper_rt_str_startswith, hyper_rt_str_strip, hyper_rt_str_swapcase,
-    hyper_rt_str_title, hyper_rt_str_upper, hyper_rt_str_zfill,
-    hyper_rt_list_get, hyper_rt_list_len, hyper_rt_list_new, hyper_rt_list_push,
-    hyper_rt_list_set, hyper_rt_floor_div_f64, hyper_rt_floor_div_i64, hyper_rt_pow_f64,
-    hyper_rt_pow_i64, hyper_rt_print_dict,
-    hyper_rt_print_f64, hyper_rt_print_i64, hyper_rt_print_list, hyper_rt_print_newline,
-    hyper_rt_print_separator, hyper_rt_print_str, hyper_rt_print_struct, hyper_rt_print_value,
-    hyper_rt_str_concat,
-    hyper_rt_div_by_zero, hyper_rt_struct_get, hyper_rt_struct_new, hyper_rt_struct_set,
-    hyper_rt_clock,
-    hyper_rt_index_get, hyper_rt_index_set,
-    hyper_rt_input,
-    hyper_rt_handle_enter, hyper_rt_handle_leave, hyper_rt_raise,
-    hyper_rt_value_eq, hyper_rt_value_to_str,
-};
+/// Production AOT uses LLVM IR + clang; Cranelift remains for `--emit-obj` and opt-in AOT.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CodegenBackend {
+    Llvm,
+    Cranelift,
+}
+
+/// Resolve backend from `HYPER_CODEGEN` (`llvm` | `cranelift`). Default: **llvm**.
+pub fn default_backend() -> CodegenBackend {
+    match std::env::var("HYPER_CODEGEN") {
+        Ok(v) => match v.trim().to_ascii_lowercase().as_str() {
+            "cranelift" | "clif" => CodegenBackend::Cranelift,
+            "llvm" | "" => CodegenBackend::Llvm,
+            other => {
+                eprintln!(
+                    "warning: unknown HYPER_CODEGEN={other:?}, using llvm (try llvm|cranelift)"
+                );
+                CodegenBackend::Llvm
+            }
+        },
+        Err(_) => CodegenBackend::Llvm,
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ValueKind {
+pub(crate) enum ValueKind {
     I64,
     U64,
     F64,
@@ -70,7 +53,7 @@ enum ValueKind {
 }
 
 impl ValueKind {
-    fn as_i64(self) -> i64 {
+    pub(crate) fn as_i64(self) -> i64 {
         match self {
             ValueKind::I64 => 0,
             ValueKind::F64 => 1,
@@ -778,7 +761,7 @@ fn kind_of(map: &HashMap<ValueId, ValueKind>, id: ValueId) -> ValueKind {
 }
 
 /// Kinds whose `==` cannot be a raw payload comparison.
-fn needs_runtime_eq(kind: ValueKind) -> bool {
+pub(crate) fn needs_runtime_eq(kind: ValueKind) -> bool {
     matches!(
         kind,
         ValueKind::Str | ValueKind::List | ValueKind::Dict | ValueKind::Struct | ValueKind::Dynamic
@@ -807,7 +790,7 @@ fn named_kind(map: &HashMap<String, ValueKind>, name: &str) -> ValueKind {
 /// Names that may hold more than one runtime kind (or are function params).
 /// Only these need a Cranelift kind SSA variable — monomorphic locals (e.g. range
 /// induction `i`) skip the per-iteration kind `iconst`/`def_var` tax.
-fn names_needing_kind_vars(body: &[IrInstr], params: &[String]) -> HashSet<String> {
+pub(crate) fn names_needing_kind_vars(body: &[IrInstr], params: &[String]) -> HashSet<String> {
     let mut value_kinds: HashMap<ValueId, ValueKind> = HashMap::new();
     let mut named_kinds: HashMap<String, ValueKind> = HashMap::new();
     let mut need: HashSet<String> = params.iter().cloned().collect();
@@ -933,192 +916,13 @@ pub fn dump_ir(module: &IrModule) {
     println!("{}", module);
 }
 
-fn register_jit_symbols(jit_builder: &mut JITBuilder) {
-    jit_builder.symbol("hyper_rt_print_i64", hyper_rt_print_i64 as *const u8);
-    jit_builder.symbol("hyper_rt_print_f64", hyper_rt_print_f64 as *const u8);
-    jit_builder.symbol("hyper_rt_print_str", hyper_rt_print_str as *const u8);
-    jit_builder.symbol(
-        "hyper_rt_print_newline",
-        hyper_rt_print_newline as *const u8,
-    );
-    jit_builder.symbol(
-        "hyper_rt_print_separator",
-        hyper_rt_print_separator as *const u8,
-    );
-    jit_builder.symbol("hyper_rt_print_list", hyper_rt_print_list as *const u8);
-    jit_builder.symbol("hyper_rt_print_dict", hyper_rt_print_dict as *const u8);
-    jit_builder.symbol("hyper_rt_print_value", hyper_rt_print_value as *const u8);
-    jit_builder.symbol("hyper_rt_pow_i64", hyper_rt_pow_i64 as *const u8);
-    jit_builder.symbol("hyper_rt_pow_f64", hyper_rt_pow_f64 as *const u8);
-    jit_builder.symbol("hyper_rt_floor_div_i64", hyper_rt_floor_div_i64 as *const u8);
-    jit_builder.symbol("hyper_rt_floor_div_f64", hyper_rt_floor_div_f64 as *const u8);
-    jit_builder.symbol("hyper_rt_list_new", hyper_rt_list_new as *const u8);
-    jit_builder.symbol("hyper_rt_list_push", hyper_rt_list_push as *const u8);
-    jit_builder.symbol("hyper_rt_list_get", hyper_rt_list_get as *const u8);
-    jit_builder.symbol("hyper_rt_list_set", hyper_rt_list_set as *const u8);
-    jit_builder.symbol("hyper_rt_list_len", hyper_rt_list_len as *const u8);
-    jit_builder.symbol("hyper_rt_dict_new", hyper_rt_dict_new as *const u8);
-    jit_builder.symbol("hyper_rt_dict_push", hyper_rt_dict_push as *const u8);
-    jit_builder.symbol("hyper_rt_dict_get", hyper_rt_dict_get as *const u8);
-    jit_builder.symbol("hyper_rt_dict_set", hyper_rt_dict_set as *const u8);
-    jit_builder.symbol("hyper_rt_index_get", hyper_rt_index_get as *const u8);
-    jit_builder.symbol("hyper_rt_index_set", hyper_rt_index_set as *const u8);
-    jit_builder.symbol("hyper_rt_value_to_str", hyper_rt_value_to_str as *const u8);
-    jit_builder.symbol("hyper_rt_value_eq", hyper_rt_value_eq as *const u8);
-    jit_builder.symbol("hyper_rt_div_by_zero", hyper_rt_div_by_zero as *const u8);
-    jit_builder.symbol("hyper_rt_str_concat", hyper_rt_str_concat as *const u8);
-    jit_builder.symbol("hyper_rt_struct_new", hyper_rt_struct_new as *const u8);
-    jit_builder.symbol("hyper_rt_struct_get", hyper_rt_struct_get as *const u8);
-    jit_builder.symbol("hyper_rt_struct_set", hyper_rt_struct_set as *const u8);
-    jit_builder.symbol("hyper_rt_print_struct", hyper_rt_print_struct as *const u8);
-    jit_builder.symbol("hyper_rt_file_open", hyper_rt_file_open as *const u8);
-    jit_builder.symbol("hyper_rt_file_close", hyper_rt_file_close as *const u8);
-    jit_builder.symbol("hyper_rt_file_read_all", hyper_rt_file_read_all as *const u8);
-    jit_builder.symbol("hyper_rt_file_read_n", hyper_rt_file_read_n as *const u8);
-    jit_builder.symbol("hyper_rt_file_readline", hyper_rt_file_readline as *const u8);
-    jit_builder.symbol("hyper_rt_file_readlines", hyper_rt_file_readlines as *const u8);
-    jit_builder.symbol("hyper_rt_file_write", hyper_rt_file_write as *const u8);
-    jit_builder.symbol("hyper_rt_file_writelines", hyper_rt_file_writelines as *const u8);
-    jit_builder.symbol("hyper_rt_file_seek", hyper_rt_file_seek as *const u8);
-    jit_builder.symbol("hyper_rt_file_tell", hyper_rt_file_tell as *const u8);
-    jit_builder.symbol("hyper_rt_file_size", hyper_rt_file_size as *const u8);
-    jit_builder.symbol("hyper_rt_file_flush", hyper_rt_file_flush as *const u8);
-    jit_builder.symbol("hyper_rt_file_is_closed", hyper_rt_file_is_closed as *const u8);
-    jit_builder.symbol("hyper_rt_file_path", hyper_rt_file_path as *const u8);
-    jit_builder.symbol("hyper_rt_file_mode", hyper_rt_file_mode as *const u8);
-    jit_builder.symbol("hyper_rt_mmap_open", hyper_rt_mmap_open as *const u8);
-    jit_builder.symbol("hyper_rt_mmap_close", hyper_rt_mmap_close as *const u8);
-    jit_builder.symbol("hyper_rt_mmap_read_chunk", hyper_rt_mmap_read_chunk as *const u8);
-    jit_builder.symbol("hyper_rt_input", hyper_rt_input as *const u8);
-    jit_builder.symbol("hyper_rt_clock", hyper_rt_clock as *const u8);
-    jit_builder.symbol("hyper_rt_coll_len", hyper_rt_coll_len as *const u8);
-    jit_builder.symbol("hyper_rt_coll_append", hyper_rt_coll_append as *const u8);
-    jit_builder.symbol("hyper_rt_coll_keys", hyper_rt_coll_keys as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_len", hyper_rt_builtin_len as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_abs", hyper_rt_builtin_abs as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_min", hyper_rt_builtin_min as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_max", hyper_rt_builtin_max as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_sum", hyper_rt_builtin_sum as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_round", hyper_rt_builtin_round as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_pow", hyper_rt_builtin_pow as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_divmod", hyper_rt_builtin_divmod as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_chr", hyper_rt_builtin_chr as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_ord", hyper_rt_builtin_ord as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_bin", hyper_rt_builtin_bin as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_hex", hyper_rt_builtin_hex as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_oct", hyper_rt_builtin_oct as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_int", hyper_rt_builtin_int as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_float", hyper_rt_builtin_float as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_str", hyper_rt_builtin_str as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_bool", hyper_rt_builtin_bool as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_all", hyper_rt_builtin_all as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_any", hyper_rt_builtin_any as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_sorted", hyper_rt_builtin_sorted as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_reversed", hyper_rt_builtin_reversed as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_enumerate", hyper_rt_builtin_enumerate as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_zip", hyper_rt_builtin_zip as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_list", hyper_rt_builtin_list as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_range", hyper_rt_builtin_range as *const u8);
-    jit_builder.symbol("hyper_rt_builtin_repr", hyper_rt_builtin_repr as *const u8);
-    jit_builder.symbol("hyper_rt_str_upper", hyper_rt_str_upper as *const u8);
-    jit_builder.symbol("hyper_rt_str_lower", hyper_rt_str_lower as *const u8);
-    jit_builder.symbol("hyper_rt_str_capitalize", hyper_rt_str_capitalize as *const u8);
-    jit_builder.symbol("hyper_rt_str_title", hyper_rt_str_title as *const u8);
-    jit_builder.symbol("hyper_rt_str_swapcase", hyper_rt_str_swapcase as *const u8);
-    jit_builder.symbol("hyper_rt_str_strip", hyper_rt_str_strip as *const u8);
-    jit_builder.symbol("hyper_rt_str_lstrip", hyper_rt_str_lstrip as *const u8);
-    jit_builder.symbol("hyper_rt_str_rstrip", hyper_rt_str_rstrip as *const u8);
-    jit_builder.symbol("hyper_rt_str_startswith", hyper_rt_str_startswith as *const u8);
-    jit_builder.symbol("hyper_rt_str_endswith", hyper_rt_str_endswith as *const u8);
-    jit_builder.symbol("hyper_rt_str_split", hyper_rt_str_split as *const u8);
-    jit_builder.symbol("hyper_rt_str_rsplit", hyper_rt_str_rsplit as *const u8);
-    jit_builder.symbol("hyper_rt_str_replace", hyper_rt_str_replace as *const u8);
-    jit_builder.symbol("hyper_rt_str_join", hyper_rt_str_join as *const u8);
-    jit_builder.symbol("hyper_rt_str_find", hyper_rt_str_find as *const u8);
-    jit_builder.symbol("hyper_rt_str_rfind", hyper_rt_str_rfind as *const u8);
-    jit_builder.symbol("hyper_rt_str_index", hyper_rt_str_index as *const u8);
-    jit_builder.symbol("hyper_rt_str_rindex", hyper_rt_str_rindex as *const u8);
-    jit_builder.symbol("hyper_rt_str_count", hyper_rt_str_count as *const u8);
-    jit_builder.symbol("hyper_rt_str_isdigit", hyper_rt_str_isdigit as *const u8);
-    jit_builder.symbol("hyper_rt_str_isalpha", hyper_rt_str_isalpha as *const u8);
-    jit_builder.symbol("hyper_rt_str_isalnum", hyper_rt_str_isalnum as *const u8);
-    jit_builder.symbol("hyper_rt_str_isspace", hyper_rt_str_isspace as *const u8);
-    jit_builder.symbol("hyper_rt_str_islower", hyper_rt_str_islower as *const u8);
-    jit_builder.symbol("hyper_rt_str_isupper", hyper_rt_str_isupper as *const u8);
-    jit_builder.symbol("hyper_rt_str_istitle", hyper_rt_str_istitle as *const u8);
-    jit_builder.symbol("hyper_rt_str_isascii", hyper_rt_str_isascii as *const u8);
-    jit_builder.symbol("hyper_rt_str_center", hyper_rt_str_center as *const u8);
-    jit_builder.symbol("hyper_rt_str_ljust", hyper_rt_str_ljust as *const u8);
-    jit_builder.symbol("hyper_rt_str_rjust", hyper_rt_str_rjust as *const u8);
-    jit_builder.symbol("hyper_rt_str_zfill", hyper_rt_str_zfill as *const u8);
-    jit_builder.symbol("hyper_rt_str_removeprefix", hyper_rt_str_removeprefix as *const u8);
-    jit_builder.symbol("hyper_rt_str_removesuffix", hyper_rt_str_removesuffix as *const u8);
-    jit_builder.symbol("hyper_rt_str_partition", hyper_rt_str_partition as *const u8);
-    jit_builder.symbol("hyper_rt_str_rpartition", hyper_rt_str_rpartition as *const u8);
-    jit_builder.symbol("hyper_rt_json_loads", hyper_rt_json_loads as *const u8);
-    jit_builder.symbol("hyper_rt_json_dumps", hyper_rt_json_dumps as *const u8);
-    jit_builder.symbol("hyper_rt_json_load", hyper_rt_json_load as *const u8);
-    jit_builder.symbol("hyper_rt_json_dump", hyper_rt_json_dump as *const u8);
-    jit_builder.symbol("hyper_rt_handle_enter", hyper_rt_handle_enter as *const u8);
-    jit_builder.symbol("hyper_rt_handle_leave", hyper_rt_handle_leave as *const u8);
-    jit_builder.symbol("hyper_rt_raise", hyper_rt_raise as *const u8);
+/// Emit LLVM IR text to `out_path` (typically `.ll`).
+pub fn emit_llvm(module: &IrModule, out_path: &str) -> Result<(), String> {
+    let ir = super::llvm_emit::emit_llvm_ir(module)?;
+    std::fs::write(out_path, ir).map_err(|e| e.to_string())
 }
 
-pub fn jit_execute(module: &IrModule) -> Result<(), String> {
-    let flags = make_flags(false)?;
-    let isa_builder =
-        cranelift_native::builder().map_err(|msg| format!("host unsupported: {msg}"))?;
-    let isa = isa_builder.finish(flags).map_err(|e| e.to_string())?;
-
-    let mut jit_builder = JITBuilder::with_isa(isa, default_libcall_names());
-    register_jit_symbols(&mut jit_builder);
-
-    let mut jit = JITModule::new(jit_builder);
-    let mut ctx = jit.make_context();
-    let mut func_ctx = FunctionBuilderContext::new();
-    let mut strings = StringData::new();
-
-    let runtime = declare_runtime(&mut jit)?;
-    let func_ids = declare_user_funcs(&mut jit, module)?;
-    let main_id = func_ids["__main__"];
-
-    for func in &module.functions {
-        let id = func_ids[&func.name];
-        define_function(
-            &mut jit,
-            &mut ctx,
-            &mut func_ctx,
-            id,
-            &func.params,
-            &func.body,
-            &func_ids,
-            &runtime,
-            &mut strings,
-            true,
-        )?;
-    }
-
-    define_function(
-        &mut jit,
-        &mut ctx,
-        &mut func_ctx,
-        main_id,
-        &[],
-        &module.main,
-        &func_ids,
-        &runtime,
-        &mut strings,
-        false,
-    )?;
-
-    jit.finalize_definitions().map_err(|e| e.to_string())?;
-
-    let code = jit.get_finalized_function(main_id);
-    let main_fn: extern "C" fn() -> i64 = unsafe { mem::transmute(code) };
-    let _ = main_fn();
-    Ok(())
-}
-
+/// Cranelift-only: Hyper-IR → machine object (rustc_codegen_cranelift niche).
 pub fn emit_object(module: &IrModule, out_path: &str) -> Result<(), String> {
     let flags = make_flags(true)?;
     let isa_builder =
@@ -1171,7 +975,7 @@ pub fn emit_object(module: &IrModule, out_path: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn runtime_c_path() -> Result<PathBuf, String> {
+pub(crate) fn runtime_c_path() -> Result<PathBuf, String> {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = manifest.join("compiler").join("runtime").join("hyper_rt.c");
     if !path.exists() {
@@ -1180,7 +984,7 @@ fn runtime_c_path() -> Result<PathBuf, String> {
     Ok(path)
 }
 
-fn runtime_file_c_path() -> Result<PathBuf, String> {
+pub(crate) fn runtime_file_c_path() -> Result<PathBuf, String> {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = manifest.join("compiler").join("runtime").join("hyper_rt_file.c");
     if !path.exists() {
@@ -1189,7 +993,7 @@ fn runtime_file_c_path() -> Result<PathBuf, String> {
     Ok(path)
 }
 
-fn runtime_json_c_path() -> Result<PathBuf, String> {
+pub(crate) fn runtime_json_c_path() -> Result<PathBuf, String> {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = manifest.join("compiler").join("runtime").join("hyper_rt_json.c");
     if !path.exists() {
@@ -1198,7 +1002,7 @@ fn runtime_json_c_path() -> Result<PathBuf, String> {
     Ok(path)
 }
 
-fn runtime_mmap_c_path() -> Result<PathBuf, String> {
+pub(crate) fn runtime_mmap_c_path() -> Result<PathBuf, String> {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = manifest.join("compiler").join("runtime").join("hyper_rt_mmap.c");
     if !path.exists() {
@@ -1207,7 +1011,7 @@ fn runtime_mmap_c_path() -> Result<PathBuf, String> {
     Ok(path)
 }
 
-fn runtime_io_c_path() -> Result<PathBuf, String> {
+pub(crate) fn runtime_io_c_path() -> Result<PathBuf, String> {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = manifest.join("compiler").join("runtime").join("hyper_rt_io.c");
     if !path.exists() {
@@ -1216,7 +1020,7 @@ fn runtime_io_c_path() -> Result<PathBuf, String> {
     Ok(path)
 }
 
-fn runtime_str_c_path() -> Result<PathBuf, String> {
+pub(crate) fn runtime_str_c_path() -> Result<PathBuf, String> {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = manifest.join("compiler").join("runtime").join("hyper_rt_str.c");
     if !path.exists() {
@@ -1225,7 +1029,7 @@ fn runtime_str_c_path() -> Result<PathBuf, String> {
     Ok(path)
 }
 
-fn runtime_builtins_c_path() -> Result<PathBuf, String> {
+pub(crate) fn runtime_builtins_c_path() -> Result<PathBuf, String> {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = manifest
         .join("compiler")
@@ -1252,10 +1056,11 @@ fn find_cc() -> Result<(String, bool), String> {
         }
     }
 
+    // Prefer LLVM's clang for linking on all platforms; fall back to host cc / MSVC.
     #[cfg(windows)]
     let candidates: &[&str] = &["clang", "clang-cl", "gcc", "cl"];
     #[cfg(not(windows))]
-    let candidates: &[&str] = &["cc", "clang", "gcc"];
+    let candidates: &[&str] = &["clang", "gcc", "cc"];
 
     for cand in candidates {
         let is_msvc = is_msvc_driver(cand);
@@ -1275,7 +1080,7 @@ fn find_cc() -> Result<(String, bool), String> {
     }
     #[cfg(not(windows))]
     {
-        Err("no C compiler found (tried cc, clang, gcc)".to_string())
+        Err("no C compiler found (tried clang, gcc, cc)".to_string())
     }
 }
 
@@ -1286,6 +1091,15 @@ fn is_msvc_driver(prog: &str) -> bool {
         .unwrap_or(prog)
         .to_ascii_lowercase();
     name == "cl" || name == "clang-cl"
+}
+
+fn is_clang_driver(prog: &str) -> bool {
+    let name = Path::new(prog)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(prog)
+        .to_ascii_lowercase();
+    name == "clang"
 }
 
 fn linker_works(prog: &str, is_msvc: bool) -> bool {
@@ -1300,7 +1114,7 @@ fn linker_works(prog: &str, is_msvc: bool) -> bool {
         .unwrap_or(false)
 }
 
-fn normalize_exe_path(out_path: &str) -> String {
+pub(crate) fn normalize_exe_path(out_path: &str) -> String {
     #[cfg(windows)]
     {
         let p = Path::new(out_path);
@@ -1312,6 +1126,15 @@ fn normalize_exe_path(out_path: &str) -> String {
 }
 
 pub fn emit_exe(module: &IrModule, out_path: &str) -> Result<(), String> {
+    match default_backend() {
+        CodegenBackend::Llvm => super::llvm_emit::emit_exe_llvm(module, out_path),
+        CodegenBackend::Cranelift => emit_exe_cranelift(module, out_path),
+    }
+}
+
+fn emit_exe_cranelift(module: &IrModule, out_path: &str) -> Result<(), String> {
+    // Cranelift emits the machine object; clang/LLVM (or the host C toolchain) links
+    // it with the Hyper C runtime and the system C library.
     let tmp_dir = std::env::temp_dir();
     let obj_ext = if cfg!(windows) { "obj" } else { "o" };
     let obj_path = tmp_dir.join(format!("hyper_{}.{}", std::process::id(), obj_ext));
@@ -1359,6 +1182,10 @@ pub fn emit_exe(module: &IrModule, out_path: &str) -> Result<(), String> {
         status
     } else {
         let mut cmd = Command::new(&cc);
+        // Prefer -O2 when linking with clang for better AOT quality on the C runtime.
+        if is_clang_driver(&cc) {
+            cmd.arg("-O2");
+        }
         cmd.arg(obj_str)
             .arg(rt.as_os_str())
             .arg(rt_file.as_os_str())
@@ -1593,7 +1420,7 @@ fn instr_uses(instr: &IrInstr) -> Vec<ValueId> {
     }
 }
 
-fn call_returns_owned_str(func: &str) -> bool {
+pub(crate) fn call_returns_owned_str(func: &str) -> bool {
     matches!(
         func,
         "hyper_rt_str_upper"
@@ -1664,7 +1491,7 @@ fn should_consume_concat_operand(
 }
 
 /// Per-instruction `(consume_left, consume_right)` for `str_concat` / string `+`.
-fn concat_consume_plan(body: &[IrInstr]) -> Vec<(bool, bool)> {
+pub(crate) fn concat_consume_plan(body: &[IrInstr]) -> Vec<(bool, bool)> {
     let mut value_kinds: HashMap<ValueId, ValueKind> = HashMap::new();
     let mut named_kinds: HashMap<String, ValueKind> = HashMap::new();
     let mut owned_temps: HashSet<ValueId> = HashSet::new();

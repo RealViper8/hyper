@@ -5,6 +5,36 @@ All notable changes to Hyper are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Hyper 0.4.0
+
+Language and toolchain improvements since 0.3.0: richer builtins on the compile path, first-class native support across major OSes, faster collections and integers, stricter compile-time checks, and a fuller language reference.
+
+Hyper remains **compiler-only** (as in 0.3.0): `hyper run` / `hyper compile` use the Cranelift JIT; `--emit-exe` / `--emit-obj` remain available for ahead-of-time artifacts.
+
+### Added
+
+- A broad set of Python-shaped builtins on the compile path (JIT and AOT C runtime): numerics, conversions, sequence helpers, `range` / `enumerate` / `zip`, and related everyday helpers.
+- First-class **Linux / macOS / native Windows** support: multi-platform CI, host linking (including MSVC on Windows), Windows `open_mmap`. WSL is optional, not required.
+- Language reference docs covering variables, control flow, types, collections, I/O, modules, structs/traits, and more.
+- Dual licensing: MIT and Apache-2.0.
+
+### Improved
+
+- Compile-path dictionaries: hash-based get/set (open addressing in the AOT C runtime); insertion order kept for print / `keys()`.
+- Fixed-width integer handling on the compile path, including unsigned 64-bit support.
+- Stronger ownership tracking for heap strings (including f-string / concat paths) under the compiler runtimes.
+
+### Fixed
+
+- Compile-time rejection of literal division / modulo by zero and related hard errors (exit **65**). Unknown methods on known types and stricter builtin arity checks fail early. Dynamic zero-division still raises **RuntimeError** at run time (exit **70**).
+
+### Notes
+
+- `@parallel` / `@vectorize` still compile to sequential loops with the same per-index results; threaded / SIMD codegen remains future work.
+- Generics and full Python / stdlib parity are not claimed in this release.
+
+See release [0.4.0](https://github.com/muhammadyusufpov/hyper/releases/tag/v0.4.0)
+
 ## Hyper 0.3.0
 
 **Breaking:** Hyper is now **compiler-only**. The tree-walk interpreter is removed.
