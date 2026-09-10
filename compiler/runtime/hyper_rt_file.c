@@ -1,3 +1,8 @@
+#ifdef _MSC_VER
+// Disables "secure" warnings from msvc
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>

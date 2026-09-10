@@ -1,3 +1,8 @@
+#ifdef _MSC_VER
+// Disables "secure" warnings from msvc
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 /* Python-like builtins for AOT (`len`, `abs`, `min`, …). */
 #include <ctype.h>
 #include <limits.h>
