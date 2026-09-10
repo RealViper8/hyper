@@ -43,23 +43,23 @@ Integer `/`, `%`, `//` guard division by zero at runtime.
 
 | Program | What it checks |
 |---------|----------------|
-| `ci/smoke.hyp` | Core language; `run` / `compile` / `--emit-exe` output parity |
-| `ci/divzero.hyp` | `RuntimeError` exit code 70 |
-| `ci/io_compile.hyp` | File I/O on compile path |
-| `ci/json_compile.hyp` | JSON module on compile path |
-| `ci/mmap_compile.hyp` | Memory-mapped files on compile path |
-| `ci/input_compile.hyp` | `input()` on compile path |
-| `ci/clock_compile.hyp` | `clock()` on compile path |
-| `ci/collections_compile.hyp` | list/array/dict `len`, `append`, `keys` on compile path |
-| `ci/dict_compile.hyp` | 256-key dict get/set, overwrite, insertion-order print/keys() |
-| `ci/builtins_compile.hyp` | Builtins (`len`/`abs`/`enumerate`/`zip`/`range`/…) on compile path |
-| `ci/strings_compile.hyp` | string methods on compile path |
-| `ci/break_continue.hyp` | `break` / `continue` in `while`, `for` and `for-in`; output parity |
-| `ci/raise_handle.hyp` | `raise` / `raises` / `handle` on run and compile |
-| `ci/traits_compile.hyp` | Trait conformance on compile path |
-| `ci/pub_mut.hyp` | `pub` / `mut` field rules on compile path |
-| `ci/ref_compile.hyp` | `ref` + shared struct fields on compile path |
-| `ci/vectorize_compile.hyp` | `@vectorize` / `@parallel` compile |
+| `ci/smoke/smoke.hyp` | Core language; `run` / `compile` / `--emit-exe` output parity |
+| `ci/control/divzero.hyp` | `RuntimeError` exit code 70 |
+| `ci/io/io_compile.hyp` | File I/O on compile path |
+| `ci/io/json_compile.hyp` | JSON module on compile path |
+| `ci/io/mmap_compile.hyp` | Memory-mapped files on compile path |
+| `ci/io/input_compile.hyp` | `input()` on compile path |
+| `ci/io/clock_compile.hyp` | `clock()` on compile path |
+| `ci/collections/collections_compile.hyp` | list/array/dict `len`, `append`, `keys` on compile path |
+| `ci/collections/dict_compile.hyp` | 256-key dict get/set, overwrite, insertion-order print/keys() |
+| `ci/collections/builtins_compile.hyp` | Builtins (`len`/`abs`/`enumerate`/`zip`/`range`/…) on compile path |
+| `ci/collections/strings_compile.hyp` | string methods on compile path |
+| `ci/control/break_continue.hyp` | `break` / `continue` in `while`, `for` and `for-in`; output parity |
+| `ci/control/raise_handle.hyp` | `raise` / `raises` / `handle` on run and compile |
+| `ci/lang/traits_compile.hyp` | Trait conformance on compile path |
+| `ci/lang/pub_mut.hyp` | `pub` / `mut` field rules on compile path |
+| `ci/lang/ref_compile.hyp` | `ref` + shared struct fields on compile path |
+| `ci/lang/vectorize_compile.hyp` | `@vectorize` / `@parallel` compile |
 
 ## Loop control flow
 
