@@ -25,7 +25,7 @@ For guidelines on commit messages and history management, see [doc/COMMIT_CONVEN
 
 ## Code Guidelines
 
-* **Commit Messages:** Contributors must create commit messages with a [prefix](doc/COMMIT_CONVENTION.md) (e.g., `feat:`, `fix:`, `docs:`, `ci:`).
+* **Commit Messages:** Contributors must create commit messages with a [prefix](doc/COMMIT_CONVENTION.md) (e.g., `feat:`, `fix:`, `docs:`, `ci:`). Prefer **one commit per file** (with limited exceptions) — see [One commit per file](doc/COMMIT_CONVENTION.md#one-commit-per-file).
 * **Readability First:** Prefer clear code in the compiler pipeline (`lowering` / `codegen` / runtime).
 * **Testing:** Add or extend compile-path CI smokes (`run` / `compile` / `--emit-exe`) for behavior changes.
 
