@@ -859,6 +859,7 @@ int64_t hyper_rt_value_to_str(int64_t payload, int64_t kind) {
             }
             char* s = (char*)hyper_rt_value_to_str(list->items[i].payload, list->items[i].kind);
             pos += snprintf(buf + pos, sizeof(buf) - pos, "%s", s);
+            free(s);
         }
 
         buf[pos++] = ']';
