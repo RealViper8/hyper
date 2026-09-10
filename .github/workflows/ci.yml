@@ -155,6 +155,11 @@ jobs:
       - name: Vectorize and parallel smoke
         run: cargo run --quiet -- compile ci/lang/vectorize_compile.hyp
 
+      - name: Compiler emit-obj smoke
+        run: |
+          cargo run --quiet -- compile ci/smoke/smoke.hyp --emit-obj "$HYPER_TMP/hyper_smoke_obj.o"
+          test -s "$HYPER_TMP/hyper_smoke_obj.o" || { echo "error: emit-obj produced empty object file !"; exit 1; }
+
       - name: Compiler emit-exe smoke
         run: |
           cargo run --quiet -- compile ci/smoke/smoke.hyp --emit-exe "$HYPER_TMP/hyper_smoke"
