@@ -848,6 +848,22 @@ int64_t hyper_rt_value_to_str(int64_t payload, int64_t kind) {
         snprintf(buf, sizeof(buf), "None");
         break;
     case KIND_LIST:
+        const RtList *list = (const RtList *)(intptr_t)payload;
+        size_t pos = 0;
+        buf[pos++] = '[';
+
+        for (size_t i = 0; i < list->len; i++) {
+            if (i > 0) {
+                buf[pos++] = ',';
+                buf[pos++] = ' ';
+            }
+            char* s = (char*)hyper_rt_value_to_str(list->items[i].payload, list->items[i].kind);
+            pos += snprintf(buf + pos, sizeof(buf) - pos, "%s", s);
+        }
+
+        buf[pos++] = ']';
+        buf[pos++] = '\0';
+        break;
     case KIND_DICT: {
         /* Fall back to a small fixed buffer via format helpers into temp FILE-less path. */
         snprintf(buf, sizeof(buf), "<?>");
