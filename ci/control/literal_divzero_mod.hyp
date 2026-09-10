@@ -1,0 +1,2 @@
+# Literal zero is rejected before codegen (SyntaxError / typecheck).
+print(1 % 0)
