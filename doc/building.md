@@ -77,8 +77,8 @@ cargo run -- compile your_file.hyp --emit-exe my_app   # keep AOT binary
 ## Quick sanity check
 
 ```bash
-cargo run -- run ci/smoke.hyp
-cargo run -- compile ci/smoke.hyp
+cargo run -- run ci/smoke/smoke.hyp
+cargo run -- compile ci/smoke/smoke.hyp
 ```
 
 Both should finish without syntax errors and print the same output (both AOT-execute).

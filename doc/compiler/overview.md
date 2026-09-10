@@ -48,6 +48,6 @@ See [Supported features](supported-features.md) and [Known limitations](known-li
 |---------|----------------|
 | AOT (`hyper_rt.c`) | insertion-order array + open-addressing slot table |
 
-Print, `keys()`, JSON object load, and programs like `ci/smoke.hyp` that display dicts still use **insertion order**. Duplicate keys overwrite the existing value and keep the first key’s position. AOT JSON dump (`hyper_rt_json.c`) walks that same entry array; it does not reimplement hashing.
+Print, `keys()`, JSON object load, and programs like `ci/smoke/smoke.hyp` that display dicts still use **insertion order**. Duplicate keys overwrite the existing value and keep the first key’s position. AOT JSON dump (`hyper_rt_json.c`) walks that same entry array; it does not reimplement hashing.
 
 Unit test `dict_get_set_on_medium_map` exercises 256 keys and about a million lookups, with a wall-time bound so a regression to O(n) scan fails CI.
