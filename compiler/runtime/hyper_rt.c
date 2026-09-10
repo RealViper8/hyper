@@ -867,7 +867,9 @@ int64_t hyper_rt_value_to_str(int64_t payload, int64_t kind) {
         break;
     case KIND_DICT: {
         /* Fall back to a small fixed buffer via format helpers into temp FILE-less path. */
-        snprintf(buf, sizeof(buf), "<?>");
+        memset(buf, 0, sizeof(buf));
+        const RtDict* d = (const RtDict *)(intptr_t)payload;
+        format_dict(d);
         break;
     }
     default:
