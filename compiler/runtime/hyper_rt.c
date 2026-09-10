@@ -823,18 +823,21 @@ int64_t hyper_rt_value_to_str(int64_t payload, int64_t kind) {
     v.kind = kind;
     v.payload = payload;
 
-    char buf[512];
+    size_t pos = 0;
+    int size = 8;
+    char *buf = (char *)malloc(size);
+    hyper_rt_owned_str_register(buf);
     switch (kind) {
     case KIND_I64:
-        snprintf(buf, sizeof(buf), "%lld", (long long)payload);
+        snprintf(buf, size, "%lld", (long long)payload);
         break;
     case KIND_U64:
-        snprintf(buf, sizeof(buf), "%llu", (unsigned long long)(uint64_t)payload);
+        snprintf(buf, size, "%llu", (unsigned long long)(uint64_t)payload);
         break;
     case KIND_F64: {
         double d;
         memcpy(&d, &payload, sizeof(d));
-        format_double(d, buf, sizeof(buf));
+        format_double(d, buf, size);
         break;
     }
     case KIND_STR: {
@@ -842,14 +845,13 @@ int64_t hyper_rt_value_to_str(int64_t payload, int64_t kind) {
         return (int64_t)(intptr_t)hyper_rt_str_dup(s);
     }
     case KIND_BOOL:
-        snprintf(buf, sizeof(buf), "%s", payload ? "true" : "false");
+        snprintf(buf, size, "%s", payload ? "true" : "false");
         break;
     case KIND_NONE:
-        snprintf(buf, sizeof(buf), "None");
+        snprintf(buf, size, "None");
         break;
     case KIND_LIST:
         const RtList *list = (const RtList *)(intptr_t)payload;
-        size_t pos = 0;
         buf[pos++] = '[';
 
         for (size_t i = 0; i < list->len; i++) {
@@ -857,28 +859,76 @@ int64_t hyper_rt_value_to_str(int64_t payload, int64_t kind) {
                 buf[pos++] = ',';
                 buf[pos++] = ' ';
             }
+
             char* s = (char*)hyper_rt_value_to_str(list->items[i].payload, list->items[i].kind);
-            pos += snprintf(buf + pos, sizeof(buf) - pos, "%s", s);
+            size_t slen = strlen(s);
+            
+            if (pos + slen + 1 >= size) {
+                size_t new_size = size * 2;
+                while (pos + slen + 1 >= new_size) new_size *=2;
+                buf = (char*)realloc(buf, new_size);
+                size = new_size;
+            }
+
+            memcpy(buf + pos, s, slen);
+            pos += slen;
             free(s);
+        }
+
+        if (pos + 2 >= size) {
+            size_t new_size = size * 2;
+            buf = (char*)realloc(buf, new_size);
+            size = new_size;
         }
 
         buf[pos++] = ']';
         buf[pos++] = '\0';
         break;
     case KIND_DICT: {
-        /* Fall back to a small fixed buffer via format helpers into temp FILE-less path. */
-        memset(buf, 0, sizeof(buf));
-        const RtDict* d = (const RtDict *)(intptr_t)payload;
-        format_dict(d);
+        if (!payload) {
+            snprintf(buf, sizeof(buf), "{}");
+            break;
+        }
+
+        const RtDict* dict = (const RtDict *)(intptr_t)payload;
+        buf[pos++] = '{';
+        for (size_t i = 0; i < dict->len; i++) {
+            if (i > 0) {
+                buf[pos++] = ',';
+                buf[pos++] = ' ';
+            }
+
+            char* key = dict->entries[i].key ? dict->entries[i].key : "";
+            char* value = (char*)hyper_rt_value_to_str(dict->entries[i].value.payload, dict->entries[i].value.kind);
+            int slen = strlen(value) + strlen(key);
+
+            if (pos + slen + 4 >= size) {
+                int new_size = size * 2;
+                while (pos + slen + 1 >= new_size) new_size *= 2;
+                buf = realloc(buf, new_size);
+                size = new_size;
+            }
+
+            memcpy(buf + pos, key, strlen(key));
+            pos += strlen(key);
+
+            buf[pos++] = ':';
+            buf[pos++] = ' ';
+
+            memcpy(buf + pos, value, strlen(value));
+            pos += strlen(value);
+            free(value);
+        }
+        buf[pos++] = '}';
+        buf[pos++] = '\0';
         break;
     }
     default:
-        snprintf(buf, sizeof(buf), "<?>");
+        snprintf(buf, size, "<?>");
         break;
     }
-    size_t n = strlen(buf);
-    char *out = hyper_rt_str_dup(buf);
-    return (int64_t)(intptr_t)out;
+    // size_t n = strlen(buf);
+    return (int64_t)(intptr_t)buf;
 }
 
 int64_t hyper_rt_str_concat(int64_t left, int64_t right, int64_t consume_left, int64_t consume_right) {
