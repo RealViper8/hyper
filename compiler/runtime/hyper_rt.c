@@ -847,10 +847,79 @@ int64_t hyper_rt_value_to_str(int64_t payload, int64_t kind) {
     case KIND_NONE:
         snprintf(buf, sizeof(buf), "None");
         break;
-    case KIND_LIST:
+    case KIND_LIST: {
+        if (!payload) {
+            snprintf(buf, sizeof(buf), "[]");
+            break;
+        }
+        const RtList *list = (const RtList *)(intptr_t)payload;
+        size_t pos = 0;
+        buf[pos++] = '[';
+        buf[pos] = '\0';
+        for (size_t i = 0; i < list->len; i++) {
+            if (pos >= sizeof(buf) - 1) {
+                break;
+            }
+            if (i > 0) {
+                pos += (size_t)snprintf(buf + pos, sizeof(buf) - pos, ", ");
+                if (pos >= sizeof(buf)) {
+                    pos = sizeof(buf) - 1;
+                }
+            }
+            char *s = (char *)(intptr_t)hyper_rt_value_to_str(
+                list->items[i].payload, list->items[i].kind);
+            pos += (size_t)snprintf(buf + pos, sizeof(buf) - pos, "%s", s ? s : "");
+            if (pos >= sizeof(buf)) {
+                pos = sizeof(buf) - 1;
+            }
+            hyper_rt_owned_str_release(s);
+        }
+        if (pos < sizeof(buf) - 1) {
+            buf[pos++] = ']';
+            buf[pos] = '\0';
+        } else {
+            buf[sizeof(buf) - 1] = '\0';
+        }
+        break;
+    }
     case KIND_DICT: {
-        /* Fall back to a small fixed buffer via format helpers into temp FILE-less path. */
-        snprintf(buf, sizeof(buf), "<?>");
+        if (!payload) {
+            snprintf(buf, sizeof(buf), "{}");
+            break;
+        }
+        const RtDict *dict = (const RtDict *)(intptr_t)payload;
+        size_t pos = 0;
+        buf[pos++] = '{';
+        buf[pos] = '\0';
+        for (size_t i = 0; i < dict->len; i++) {
+            if (pos >= sizeof(buf) - 1) {
+                break;
+            }
+            if (i > 0) {
+                pos += (size_t)snprintf(buf + pos, sizeof(buf) - pos, ", ");
+                if (pos >= sizeof(buf)) {
+                    pos = sizeof(buf) - 1;
+                }
+            }
+            const char *key = dict->entries[i].key ? dict->entries[i].key : "";
+            pos += (size_t)snprintf(buf + pos, sizeof(buf) - pos, "%s: ", key);
+            if (pos >= sizeof(buf)) {
+                pos = sizeof(buf) - 1;
+            }
+            char *s = (char *)(intptr_t)hyper_rt_value_to_str(
+                dict->entries[i].value.payload, dict->entries[i].value.kind);
+            pos += (size_t)snprintf(buf + pos, sizeof(buf) - pos, "%s", s ? s : "");
+            if (pos >= sizeof(buf)) {
+                pos = sizeof(buf) - 1;
+            }
+            hyper_rt_owned_str_release(s);
+        }
+        if (pos < sizeof(buf) - 1) {
+            buf[pos++] = '}';
+            buf[pos] = '\0';
+        } else {
+            buf[sizeof(buf) - 1] = '\0';
+        }
         break;
     }
     default:
